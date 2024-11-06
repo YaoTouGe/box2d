@@ -15,18 +15,18 @@
 * misrepresented as being the original software.
 * 3. This notice may not be removed or altered from any source distribution.
 */
-#include <Box2D/Particle/b2ParticleSystem.h>
-#include <Box2D/Particle/b2ParticleGroup.h>
-#include <Box2D/Particle/b2VoronoiDiagram.h>
-#include <Box2D/Particle/b2ParticleAssembly.h>
-#include <Box2D/Common/b2BlockAllocator.h>
-#include <Box2D/Dynamics/b2World.h>
-#include <Box2D/Dynamics/b2WorldCallbacks.h>
-#include <Box2D/Dynamics/b2Body.h>
-#include <Box2D/Dynamics/b2Fixture.h>
-#include <Box2D/Collision/Shapes/b2Shape.h>
-#include <Box2D/Collision/Shapes/b2EdgeShape.h>
-#include <Box2D/Collision/Shapes/b2ChainShape.h>
+#include <particle/b2ParticleSystem.h>
+#include <box2d/b2ParticleGroup.h>
+#include <particle/b2VoronoiDiagram.h>
+#include <particle/b2ParticleAssembly.h>
+#include <box2d/b2_block_allocator.h>
+#include <box2d/b2_world.h>
+#include <box2d/b2_world_callbacks.h>
+#include <box2d/b2_body.h>
+#include <box2d/b2_fixture.h>
+#include <box2d/b2_shape.h>
+#include <box2d/b2_edge_shape.h>
+#include <box2d/b2_chain_shape.h>
 #include <algorithm>
 
 // Define LIQUIDFUN_SIMD_TEST_VS_REFERENCE to run both SIMD and reference

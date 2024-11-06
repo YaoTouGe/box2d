@@ -1,0 +1,1350 @@
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2ChainAndCircleContact.cpp b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2ChainAndCircleContact.cpp
+index 81bf6823..01c921f3 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2ChainAndCircleContact.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2ChainAndCircleContact.cpp
+@@ -23,7 +23,6 @@
+ #include <Box2D/Collision/Shapes/b2EdgeShape.h>
+ 
+ #include <new>
+-using namespace std;
+ 
+ b2Contact* b2ChainAndCircleContact::Create(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB, int32 indexB, b2BlockAllocator* allocator)
+ {
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2ChainAndPolygonContact.cpp b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2ChainAndPolygonContact.cpp
+index 0da21878..4642fa46 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2ChainAndPolygonContact.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2ChainAndPolygonContact.cpp
+@@ -23,7 +23,6 @@
+ #include <Box2D/Collision/Shapes/b2EdgeShape.h>
+ 
+ #include <new>
+-using namespace std;
+ 
+ b2Contact* b2ChainAndPolygonContact::Create(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB, int32 indexB, b2BlockAllocator* allocator)
+ {
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2CircleContact.cpp b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2CircleContact.cpp
+index ade09204..b47f35ae 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2CircleContact.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2CircleContact.cpp
+@@ -24,7 +24,6 @@
+ #include <Box2D/Collision/b2TimeOfImpact.h>
+ 
+ #include <new>
+-using namespace std;
+ 
+ b2Contact* b2CircleContact::Create(b2Fixture* fixtureA, int32, b2Fixture* fixtureB, int32, b2BlockAllocator* allocator)
+ {
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2Contact.h b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2Contact.h
+index 9b203338..36e31e25 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2Contact.h
++++ b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2Contact.h
+@@ -36,7 +36,7 @@ class b2ContactListener;
+ /// For example, anything slides on ice.
+ inline float32 b2MixFriction(float32 friction1, float32 friction2)
+ {
+-	return std::sqrt(friction1 * friction2);
++	return b2Sqrt(friction1 * friction2);
+ }
+ 
+ /// Restitution mixing law. The idea is allow for anything to bounce off an inelastic surface.
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2ContactSolver.cpp b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2ContactSolver.cpp
+index 8224fdc2..c6cd3d56 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2ContactSolver.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2ContactSolver.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2011 Erin Catto http://www.box2d.org
++* Copyright (c) 2014 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -478,7 +479,6 @@ void b2ContactSolver::SolveVelocityConstraints()
+ 				//
+ 				x.x = - cp1->normalMass * b.x;
+ 				x.y = 0.0f;
+-				vn1 = 0.0f;
+ 				vn2 = vc->K.ex.y * x.x + b.y;
+ 
+ 				if (x.x >= 0.0f && vn2 >= 0.0f)
+@@ -521,7 +521,6 @@ void b2ContactSolver::SolveVelocityConstraints()
+ 				x.x = 0.0f;
+ 				x.y = - cp2->normalMass * b.y;
+ 				vn1 = vc->K.ey.x * x.y + b.x;
+-				vn2 = 0.0f;
+ 
+ 				if (x.y >= 0.0f && vn1 >= 0.0f)
+ 				{
+@@ -654,6 +653,15 @@ struct b2PositionSolverManifold
+ 				normal = -normal;
+ 			}
+ 			break;
++		default:
++			{
++				// This shouldn't be executed if pc->type is valid.
++				separation = 0.0f;
++				normal = b2Vec2_zero;
++				point = b2Vec2_zero;
++				b2Assert(false);
++			}
++			break;
+ 		}
+ 	}
+ 
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2EdgeAndCircleContact.cpp b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2EdgeAndCircleContact.cpp
+index 742a1016..d1fd3295 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2EdgeAndCircleContact.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2EdgeAndCircleContact.cpp
+@@ -21,7 +21,6 @@
+ #include <Box2D/Dynamics/b2Fixture.h>
+ 
+ #include <new>
+-using namespace std;
+ 
+ b2Contact* b2EdgeAndCircleContact::Create(b2Fixture* fixtureA, int32, b2Fixture* fixtureB, int32, b2BlockAllocator* allocator)
+ {
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2EdgeAndPolygonContact.cpp b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2EdgeAndPolygonContact.cpp
+index 0eb09cff..ba536bc3 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2EdgeAndPolygonContact.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2EdgeAndPolygonContact.cpp
+@@ -21,7 +21,6 @@
+ #include <Box2D/Dynamics/b2Fixture.h>
+ 
+ #include <new>
+-using namespace std;
+ 
+ b2Contact* b2EdgeAndPolygonContact::Create(b2Fixture* fixtureA, int32, b2Fixture* fixtureB, int32, b2BlockAllocator* allocator)
+ {
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2PolygonAndCircleContact.cpp b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2PolygonAndCircleContact.cpp
+index b5712af8..7c9cbcc9 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2PolygonAndCircleContact.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2PolygonAndCircleContact.cpp
+@@ -21,7 +21,6 @@
+ #include <Box2D/Dynamics/b2Fixture.h>
+ 
+ #include <new>
+-using namespace std;
+ 
+ b2Contact* b2PolygonAndCircleContact::Create(b2Fixture* fixtureA, int32, b2Fixture* fixtureB, int32, b2BlockAllocator* allocator)
+ {
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2PolygonContact.cpp b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2PolygonContact.cpp
+index 47dce21f..b5706ca1 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2PolygonContact.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/Contacts/b2PolygonContact.cpp
+@@ -24,7 +24,6 @@
+ #include <Box2D/Dynamics/b2WorldCallbacks.h>
+ 
+ #include <new>
+-using namespace std;
+ 
+ b2Contact* b2PolygonContact::Create(b2Fixture* fixtureA, int32, b2Fixture* fixtureB, int32, b2BlockAllocator* allocator)
+ {
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Joints/b2Joint.cpp b/liquidfun/Box2D/Box2D/Dynamics/Joints/b2Joint.cpp
+index 1ef49906..dd55be94 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Joints/b2Joint.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/Joints/b2Joint.cpp
+@@ -43,77 +43,77 @@ b2Joint* b2Joint::Create(const b2JointDef* def, b2BlockAllocator* allocator)
+ 	case e_distanceJoint:
+ 		{
+ 			void* mem = allocator->Allocate(sizeof(b2DistanceJoint));
+-			joint = new (mem) b2DistanceJoint((b2DistanceJointDef*)def);
++			joint = new (mem) b2DistanceJoint(static_cast<const b2DistanceJointDef*>(def));
+ 		}
+ 		break;
+ 
+ 	case e_mouseJoint:
+ 		{
+ 			void* mem = allocator->Allocate(sizeof(b2MouseJoint));
+-			joint = new (mem) b2MouseJoint((b2MouseJointDef*)def);
++			joint = new (mem) b2MouseJoint(static_cast<const b2MouseJointDef*>(def));
+ 		}
+ 		break;
+ 
+ 	case e_prismaticJoint:
+ 		{
+ 			void* mem = allocator->Allocate(sizeof(b2PrismaticJoint));
+-			joint = new (mem) b2PrismaticJoint((b2PrismaticJointDef*)def);
++			joint = new (mem) b2PrismaticJoint(static_cast<const b2PrismaticJointDef*>(def));
+ 		}
+ 		break;
+ 
+ 	case e_revoluteJoint:
+ 		{
+ 			void* mem = allocator->Allocate(sizeof(b2RevoluteJoint));
+-			joint = new (mem) b2RevoluteJoint((b2RevoluteJointDef*)def);
++			joint = new (mem) b2RevoluteJoint(static_cast<const b2RevoluteJointDef*>(def));
+ 		}
+ 		break;
+ 
+ 	case e_pulleyJoint:
+ 		{
+ 			void* mem = allocator->Allocate(sizeof(b2PulleyJoint));
+-			joint = new (mem) b2PulleyJoint((b2PulleyJointDef*)def);
++			joint = new (mem) b2PulleyJoint(static_cast<const b2PulleyJointDef*>(def));
+ 		}
+ 		break;
+ 
+ 	case e_gearJoint:
+ 		{
+ 			void* mem = allocator->Allocate(sizeof(b2GearJoint));
+-			joint = new (mem) b2GearJoint((b2GearJointDef*)def);
++			joint = new (mem) b2GearJoint(static_cast<const b2GearJointDef*>(def));
+ 		}
+ 		break;
+ 
+ 	case e_wheelJoint:
+ 		{
+ 			void* mem = allocator->Allocate(sizeof(b2WheelJoint));
+-			joint = new (mem) b2WheelJoint((b2WheelJointDef*)def);
++			joint = new (mem) b2WheelJoint(static_cast<const b2WheelJointDef*>(def));
+ 		}
+ 		break;
+ 
+ 	case e_weldJoint:
+ 		{
+ 			void* mem = allocator->Allocate(sizeof(b2WeldJoint));
+-			joint = new (mem) b2WeldJoint((b2WeldJointDef*)def);
++			joint = new (mem) b2WeldJoint(static_cast<const b2WeldJointDef*>(def));
+ 		}
+ 		break;
+         
+ 	case e_frictionJoint:
+ 		{
+ 			void* mem = allocator->Allocate(sizeof(b2FrictionJoint));
+-			joint = new (mem) b2FrictionJoint((b2FrictionJointDef*)def);
++			joint = new (mem) b2FrictionJoint(static_cast<const b2FrictionJointDef*>(def));
+ 		}
+ 		break;
+ 
+ 	case e_ropeJoint:
+ 		{
+ 			void* mem = allocator->Allocate(sizeof(b2RopeJoint));
+-			joint = new (mem) b2RopeJoint((b2RopeJointDef*)def);
++			joint = new (mem) b2RopeJoint(static_cast<const b2RopeJointDef*>(def));
+ 		}
+ 		break;
+ 
+ 	case e_motorJoint:
+ 		{
+ 			void* mem = allocator->Allocate(sizeof(b2MotorJoint));
+-			joint = new (mem) b2MotorJoint((b2MotorJointDef*)def);
++			joint = new (mem) b2MotorJoint(static_cast<const b2MotorJointDef*>(def));
+ 		}
+ 		break;
+ 
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Joints/b2MotorJoint.cpp b/liquidfun/Box2D/Box2D/Dynamics/Joints/b2MotorJoint.cpp
+index 613336bf..e5bbcb16 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Joints/b2MotorJoint.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/Joints/b2MotorJoint.cpp
+@@ -245,6 +245,17 @@ float32 b2MotorJoint::GetMaxTorque() const
+ 	return m_maxTorque;
+ }
+ 
++void b2MotorJoint::SetCorrectionFactor(float32 factor)
++{
++	b2Assert(b2IsValid(factor) && 0.0f <= factor && factor <= 1.0f);
++	m_correctionFactor = factor;
++}
++
++float32 b2MotorJoint::GetCorrectionFactor() const
++{
++	return m_correctionFactor;
++}
++
+ void b2MotorJoint::SetLinearOffset(const b2Vec2& linearOffset)
+ {
+ 	if (linearOffset.x != m_linearOffset.x || linearOffset.y != m_linearOffset.y)
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Joints/b2MotorJoint.h b/liquidfun/Box2D/Box2D/Dynamics/Joints/b2MotorJoint.h
+index a94557a1..0b76d6fe 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Joints/b2MotorJoint.h
++++ b/liquidfun/Box2D/Box2D/Dynamics/Joints/b2MotorJoint.h
+@@ -85,6 +85,12 @@ public:
+ 	/// Get the maximum friction torque in N*m.
+ 	float32 GetMaxTorque() const;
+ 
++	/// Set the position correction factor in the range [0,1].
++	void SetCorrectionFactor(float32 factor);
++
++	/// Get the position correction factor in the range [0,1].
++	float32 GetCorrectionFactor() const;
++
+ 	/// Dump to b2Log
+ 	void Dump();
+ 
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/Joints/b2WheelJoint.h b/liquidfun/Box2D/Box2D/Dynamics/Joints/b2WheelJoint.h
+index 968eeafe..ca59d7a6 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/Joints/b2WheelJoint.h
++++ b/liquidfun/Box2D/Box2D/Dynamics/Joints/b2WheelJoint.h
+@@ -79,8 +79,6 @@ struct b2WheelJointDef : public b2JointDef
+ class b2WheelJoint : public b2Joint
+ {
+ public:
+-	void GetDefinition(b2WheelJointDef* def) const;
+-
+ 	b2Vec2 GetAnchorA() const;
+ 	b2Vec2 GetAnchorB() const;
+ 
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/b2Body.cpp b/liquidfun/Box2D/Box2D/Dynamics/b2Body.cpp
+index 5bbfbc12..89bd8976 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/b2Body.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/b2Body.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2007 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -58,6 +59,7 @@ b2Body::b2Body(const b2BodyDef* bd, b2World* world)
+ 
+ 	m_xf.p = bd->position;
+ 	m_xf.q.Set(bd->angle);
++	m_xf0 = m_xf;
+ 
+ 	m_sweep.localCenter.SetZero();
+ 	m_sweep.c0 = m_xf.p;
+@@ -224,13 +226,17 @@ void b2Body::DestroyFixture(b2Fixture* fixture)
+ 	// Remove the fixture from this body's singly linked list.
+ 	b2Assert(m_fixtureCount > 0);
+ 	b2Fixture** node = &m_fixtureList;
++#if B2_ASSERT_ENABLED
+ 	bool found = false;
++#endif // B2_ASSERT_ENABLED
+ 	while (*node != NULL)
+ 	{
+ 		if (*node == fixture)
+ 		{
+ 			*node = fixture->m_next;
++#if B2_ASSERT_ENABLED
+ 			found = true;
++#endif // B2_ASSERT_ENABLED
+ 			break;
+ 		}
+ 
+@@ -424,6 +430,7 @@ void b2Body::SetTransform(const b2Vec2& position, float32 angle)
+ 
+ 	m_xf.q.Set(angle);
+ 	m_xf.p = position;
++	m_xf0 = m_xf;
+ 
+ 	m_sweep.c = b2Mul(m_xf, m_sweep.localCenter);
+ 	m_sweep.a = angle;
+@@ -436,8 +443,6 @@ void b2Body::SetTransform(const b2Vec2& position, float32 angle)
+ 	{
+ 		f->Synchronize(broadPhase, m_xf, m_xf);
+ 	}
+-
+-	m_world->m_contactManager.FindNewContacts();
+ }
+ 
+ void b2Body::SynchronizeFixtures()
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/b2Body.h b/liquidfun/Box2D/Box2D/Dynamics/b2Body.h
+index fc4ab4b2..943ad311 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/b2Body.h
++++ b/liquidfun/Box2D/Box2D/Dynamics/b2Body.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2011 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -69,6 +70,11 @@ struct b2BodyDef
+ 		gravityScale = 1.0f;
+ 	}
+ 
++#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
++	/// Set position with direct floats.
++	void SetPosition(float32 positionX, float32 positionY);
++#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
++
+ 	/// The body type: static, kinematic, or dynamic.
+ 	/// Note: if a dynamic body would have zero mass, the mass is set to one.
+ 	b2BodyType type;
+@@ -154,8 +160,8 @@ public:
+ 	void DestroyFixture(b2Fixture* fixture);
+ 
+ 	/// Set the position of the body's origin and rotation.
+-	/// This breaks any contacts and wakes the other bodies.
+ 	/// Manipulating a body's transform may cause non-physical behavior.
++	/// Note: contacts are updated on the next call to b2World::Step.
+ 	/// @param position the world position of the body's local origin.
+ 	/// @param angle the world rotation in radians.
+ 	void SetTransform(const b2Vec2& position, float32 angle);
+@@ -324,7 +330,7 @@ public:
+ 	void SetAwake(bool flag);
+ 
+ 	/// Get the sleeping state of this body.
+-	/// @return true if the body is sleeping.
++	/// @return true if the body is awake.
+ 	bool IsAwake() const;
+ 
+ 	/// Set the active state of the body. An inactive body is not
+@@ -383,6 +389,18 @@ public:
+ 	/// Dump this body to a log file
+ 	void Dump();
+ 
++#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
++public:
++	/// Get x-coordinate of position.
++	float32 GetPositionX() const { return GetPosition().x; }
++
++	/// Get y-coordinate of position.
++	float32 GetPositionY() const { return GetPosition().y; }
++
++	/// Set b2Transform using direct floats.
++	void SetTransform(float32 positionX, float32 positionY, float32 angle);
++#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
++
+ private:
+ 
+ 	friend class b2World;
+@@ -390,7 +408,7 @@ private:
+ 	friend class b2ContactManager;
+ 	friend class b2ContactSolver;
+ 	friend class b2Contact;
+-	
++
+ 	friend class b2DistanceJoint;
+ 	friend class b2FrictionJoint;
+ 	friend class b2GearJoint;
+@@ -403,6 +421,9 @@ private:
+ 	friend class b2WeldJoint;
+ 	friend class b2WheelJoint;
+ 
++	friend class b2ParticleSystem;
++	friend class b2ParticleGroup;
++
+ 	// m_flags
+ 	enum
+ 	{
+@@ -434,6 +455,7 @@ private:
+ 	int32 m_islandIndex;
+ 
+ 	b2Transform m_xf;		// the body origin transform
++	b2Transform m_xf0;		// the previous transform for particle simulation
+ 	b2Sweep m_sweep;		// the swept motion for CCD
+ 
+ 	b2Vec2 m_linearVelocity;
+@@ -857,4 +879,16 @@ inline const b2World* b2Body::GetWorld() const
+ 	return m_world;
+ }
+ 
++#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
++inline void b2BodyDef::SetPosition(float32 positionX, float32 positionY)
++{
++	position.Set(positionX, positionY);
++}
++
++inline void b2Body::SetTransform(float32 positionX, float32 positionY, float32 angle)
++{
++	SetTransform(b2Vec2(positionX, positionY), angle);
++}
++#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
++
+ #endif
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/b2ContactManager.cpp b/liquidfun/Box2D/Box2D/Dynamics/b2ContactManager.cpp
+index d8a189b7..a1148b58 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/b2ContactManager.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/b2ContactManager.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2014 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -245,8 +246,6 @@ void b2ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
+ 	// Contact creation may swap fixtures.
+ 	fixtureA = c->GetFixtureA();
+ 	fixtureB = c->GetFixtureB();
+-	indexA = c->GetChildIndexA();
+-	indexB = c->GetChildIndexB();
+ 	bodyA = fixtureA->GetBody();
+ 	bodyB = fixtureB->GetBody();
+ 
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/b2ContactManager.h b/liquidfun/Box2D/Box2D/Dynamics/b2ContactManager.h
+index 6a1d072a..d9298750 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/b2ContactManager.h
++++ b/liquidfun/Box2D/Box2D/Dynamics/b2ContactManager.h
+@@ -25,11 +25,14 @@ class b2Contact;
+ class b2ContactFilter;
+ class b2ContactListener;
+ class b2BlockAllocator;
++class b2ParticleSystem;
+ 
+ // Delegate of b2World.
+ class b2ContactManager
+ {
+ public:
++	friend class b2ParticleSystem;
++
+ 	b2ContactManager();
+ 
+ 	// Broad-phase callback.
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/b2Fixture.h b/liquidfun/Box2D/Box2D/Dynamics/b2Fixture.h
+index 753127fb..b13fab45 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/b2Fixture.h
++++ b/liquidfun/Box2D/Box2D/Dynamics/b2Fixture.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -156,6 +157,10 @@ public:
+ 	/// @param p a point in world coordinates.
+ 	bool TestPoint(const b2Vec2& p) const;
+ 
++	/// Compute the distance from this fixture.
++	/// @param p a point in world coordinates.
++	void ComputeDistance(const b2Vec2& p, float32* distance, b2Vec2* normal, int32 childIndex) const;
++
+ 	/// Cast a ray against this shape.
+ 	/// @param output the ray-cast results.
+ 	/// @param input the ray-cast input parameters.
+@@ -326,6 +331,11 @@ inline bool b2Fixture::TestPoint(const b2Vec2& p) const
+ 	return m_shape->TestPoint(m_body->GetTransform(), p);
+ }
+ 
++inline void b2Fixture::ComputeDistance(const b2Vec2& p, float32* d, b2Vec2* n, int32 childIndex) const
++{
++	m_shape->ComputeDistance(m_body->GetTransform(), p, d, n, childIndex);
++}
++
+ inline bool b2Fixture::RayCast(b2RayCastOutput* output, const b2RayCastInput& input, int32 childIndex) const
+ {
+ 	return m_shape->RayCast(output, input, m_body->GetTransform(), childIndex);
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/b2Island.cpp b/liquidfun/Box2D/Box2D/Dynamics/b2Island.cpp
+index 0ecb273a..d46589de 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/b2Island.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/b2Island.cpp
+@@ -211,10 +211,10 @@ void b2Island::Solve(b2Profile* profile, const b2TimeStep& step, const b2Vec2& g
+ 			// Solution: v(t) = v0 * exp(-c * t)
+ 			// Time step: v(t + dt) = v0 * exp(-c * (t + dt)) = v0 * exp(-c * t) * exp(-c * dt) = v * exp(-c * dt)
+ 			// v2 = exp(-c * dt) * v1
+-			// Taylor expansion:
+-			// v2 = (1.0f - c * dt) * v1
+-			v *= b2Clamp(1.0f - h * b->m_linearDamping, 0.0f, 1.0f);
+-			w *= b2Clamp(1.0f - h * b->m_angularDamping, 0.0f, 1.0f);
++			// Pade approximation:
++			// v2 = v1 * 1 / (1 + c * dt)
++			v *= 1.0f / (1.0f + h * b->m_linearDamping);
++			w *= 1.0f / (1.0f + h * b->m_angularDamping);
+ 		}
+ 
+ 		m_positions[i].c = c;
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/b2TimeStep.h b/liquidfun/Box2D/Box2D/Dynamics/b2TimeStep.h
+index a3727624..9e26aaca 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/b2TimeStep.h
++++ b/liquidfun/Box2D/Box2D/Dynamics/b2TimeStep.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2011 Erin Catto http://www.box2d.org
++* Copyright (c) 2014 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -42,6 +43,7 @@ struct b2TimeStep
+ 	float32 dtRatio;	// dt * inv_dt0
+ 	int32 velocityIterations;
+ 	int32 positionIterations;
++	int32 particleIterations;
+ 	bool warmStarting;
+ };
+ 
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/b2World.cpp b/liquidfun/Box2D/Box2D/Dynamics/b2World.cpp
+index a3a6a1e4..3b24de59 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/b2World.cpp
++++ b/liquidfun/Box2D/Box2D/Dynamics/b2World.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2011 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -36,31 +37,7 @@
+ 
+ b2World::b2World(const b2Vec2& gravity)
+ {
+-	m_destructionListener = NULL;
+-	m_debugDraw = NULL;
+-
+-	m_bodyList = NULL;
+-	m_jointList = NULL;
+-
+-	m_bodyCount = 0;
+-	m_jointCount = 0;
+-
+-	m_warmStarting = true;
+-	m_continuousPhysics = true;
+-	m_subStepping = false;
+-
+-	m_stepComplete = true;
+-
+-	m_allowSleep = true;
+-	m_gravity = gravity;
+-
+-	m_flags = e_clearForces;
+-
+-	m_inv_dt0 = 0.0f;
+-
+-	m_contactManager.m_allocator = &m_blockAllocator;
+-
+-	memset(&m_profile, 0, sizeof(b2Profile));
++	Init(gravity);
+ }
+ 
+ b2World::~b2World()
+@@ -82,6 +59,15 @@ b2World::~b2World()
+ 
+ 		b = bNext;
+ 	}
++
++	while (m_particleSystemList)
++	{
++		DestroyParticleSystem(m_particleSystemList);
++	}
++
++	// Even though the block allocator frees them for us, for safety,
++	// we should ensure that all buffers have been freed.
++	b2Assert(m_blockAllocator.GetNumGiantAllocations() == 0);
+ }
+ 
+ void b2World::SetDestructionListener(b2DestructionListener* listener)
+@@ -364,6 +350,58 @@ void b2World::DestroyJoint(b2Joint* j)
+ 	}
+ }
+ 
++b2ParticleSystem* b2World::CreateParticleSystem(const b2ParticleSystemDef* def)
++{
++	b2Assert(IsLocked() == false);
++	if (IsLocked())
++	{
++		return NULL;
++	}
++
++	void* mem = m_blockAllocator.Allocate(sizeof(b2ParticleSystem));
++	b2ParticleSystem* p = new (mem) b2ParticleSystem(def, this);
++
++	// Add to world doubly linked list.
++	p->m_prev = NULL;
++	p->m_next = m_particleSystemList;
++	if (m_particleSystemList)
++	{
++		m_particleSystemList->m_prev = p;
++	}
++	m_particleSystemList = p;
++
++	return p;
++}
++
++void b2World::DestroyParticleSystem(b2ParticleSystem* p)
++{
++	b2Assert(m_particleSystemList != NULL);
++	b2Assert(IsLocked() == false);
++	if (IsLocked())
++	{
++		return;
++	}
++
++	// Remove world particleSystem list.
++	if (p->m_prev)
++	{
++		p->m_prev->m_next = p->m_next;
++	}
++
++	if (p->m_next)
++	{
++		p->m_next->m_prev = p->m_prev;
++	}
++
++	if (p == m_particleSystemList)
++	{
++		m_particleSystemList = p->m_next;
++	}
++
++	p->~b2ParticleSystem();
++	m_blockAllocator.Free(p, sizeof(b2ParticleSystem));
++}
++
+ //
+ void b2World::SetAllowSleeping(bool flag)
+ {
+@@ -382,9 +420,49 @@ void b2World::SetAllowSleeping(bool flag)
+ 	}
+ }
+ 
++// Initialize the world with a specified gravity.
++void b2World::Init(const b2Vec2& gravity)
++{
++	m_destructionListener = NULL;
++	m_debugDraw = NULL;
++
++	m_bodyList = NULL;
++	m_jointList = NULL;
++	m_particleSystemList = NULL;
++
++	m_bodyCount = 0;
++	m_jointCount = 0;
++
++	m_warmStarting = true;
++	m_continuousPhysics = true;
++	m_subStepping = false;
++
++	m_stepComplete = true;
++
++	m_allowSleep = true;
++	m_gravity = gravity;
++
++	m_flags = e_clearForces;
++
++	m_inv_dt0 = 0.0f;
++
++	m_contactManager.m_allocator = &m_blockAllocator;
++
++	m_liquidFunVersion = &b2_liquidFunVersion;
++	m_liquidFunVersionString = b2_liquidFunVersionString;
++
++	memset(&m_profile, 0, sizeof(b2Profile));
++}
++
+ // Find islands, integrate and solve constraints, solve position constraints
+ void b2World::Solve(const b2TimeStep& step)
+ {
++	// update previous transforms
++	for (b2Body* b = m_bodyList; b; b = b->m_next)
++	{
++		b->m_xf0 = b->m_xf;
++	}
++
+ 	m_profile.solveInit = 0.0f;
+ 	m_profile.solveVelocity = 0.0f;
+ 	m_profile.solvePosition = 0.0f;
+@@ -839,7 +917,7 @@ void b2World::SolveTOI(const b2TimeStep& step)
+ 					{
+ 						continue;
+ 					}
+-					
++
+ 					// Add the other body to the island.
+ 					other->m_flags |= b2Body::e_islandFlag;
+ 
+@@ -859,6 +937,7 @@ void b2World::SolveTOI(const b2TimeStep& step)
+ 		subStep.dtRatio = 1.0f;
+ 		subStep.positionIterations = 20;
+ 		subStep.velocityIterations = step.velocityIterations;
++		subStep.particleIterations = step.particleIterations;
+ 		subStep.warmStarting = false;
+ 		island.SolveTOI(subStep, bA->m_islandIndex, bB->m_islandIndex);
+ 
+@@ -894,7 +973,11 @@ void b2World::SolveTOI(const b2TimeStep& step)
+ 	}
+ }
+ 
+-void b2World::Step(float32 dt, int32 velocityIterations, int32 positionIterations)
++void b2World::Step(
++	float32 dt,
++	int32 velocityIterations,
++	int32 positionIterations,
++	int32 particleIterations)
+ {
+ 	b2Timer stepTimer;
+ 
+@@ -911,6 +994,7 @@ void b2World::Step(float32 dt, int32 velocityIterations, int32 positionIteration
+ 	step.dt = dt;
+ 	step.velocityIterations	= velocityIterations;
+ 	step.positionIterations = positionIterations;
++	step.particleIterations = particleIterations;
+ 	if (dt > 0.0f)
+ 	{
+ 		step.inv_dt = 1.0f / dt;
+@@ -923,7 +1007,7 @@ void b2World::Step(float32 dt, int32 velocityIterations, int32 positionIteration
+ 	step.dtRatio = m_inv_dt0 * dt;
+ 
+ 	step.warmStarting = m_warmStarting;
+-	
++
+ 	// Update contacts. This is where some contacts are destroyed.
+ 	{
+ 		b2Timer timer;
+@@ -935,6 +1019,10 @@ void b2World::Step(float32 dt, int32 velocityIterations, int32 positionIteration
+ 	if (m_stepComplete && step.dt > 0.0f)
+ 	{
+ 		b2Timer timer;
++		for (b2ParticleSystem* p = m_particleSystemList; p; p = p->GetNext())
++		{
++			p->Solve(step); // Particle Simulation
++		}
+ 		Solve(step);
+ 		m_profile.solve = timer.GetMilliseconds();
+ 	}
+@@ -989,6 +1077,21 @@ void b2World::QueryAABB(b2QueryCallback* callback, const b2AABB& aabb) const
+ 	wrapper.broadPhase = &m_contactManager.m_broadPhase;
+ 	wrapper.callback = callback;
+ 	m_contactManager.m_broadPhase.Query(&wrapper, aabb);
++	for (b2ParticleSystem* p = m_particleSystemList; p; p = p->GetNext())
++	{
++		if (callback->ShouldQueryParticleSystem(p))
++		{
++			p->QueryAABB(callback, aabb);
++		}
++	}
++}
++
++void b2World::QueryShapeAABB(b2QueryCallback* callback, const b2Shape& shape,
++                             const b2Transform& xf) const
++{
++	b2AABB aabb;
++	shape.ComputeAABB(&aabb, xf, 0);
++	QueryAABB(callback, aabb);
+ }
+ 
+ struct b2WorldRayCastWrapper
+@@ -1026,6 +1129,13 @@ void b2World::RayCast(b2RayCastCallback* callback, const b2Vec2& point1, const b
+ 	input.p1 = point1;
+ 	input.p2 = point2;
+ 	m_contactManager.m_broadPhase.RayCast(&wrapper, input);
++	for (b2ParticleSystem* p = m_particleSystemList; p; p = p->GetNext())
++	{
++		if (callback->ShouldQueryParticleSystem(p))
++		{
++			p->RayCast(callback, point1, point2);
++		}
++	}
+ }
+ 
+ void b2World::DrawShape(b2Fixture* fixture, const b2Transform& xf, const b2Color& color)
+@@ -1085,9 +1195,9 @@ void b2World::DrawShape(b2Fixture* fixture, const b2Transform& xf, const b2Color
+ 			m_debugDraw->DrawSolidPolygon(vertices, vertexCount, color);
+ 		}
+ 		break;
+-            
+-    default:
+-        break;
++
++	default:
++		break;
+ 	}
+ }
+ 
+@@ -1132,6 +1242,25 @@ void b2World::DrawJoint(b2Joint* joint)
+ 	}
+ }
+ 
++void b2World::DrawParticleSystem(const b2ParticleSystem& system)
++{
++	int32 particleCount = system.GetParticleCount();
++	if (particleCount)
++	{
++		float32 radius = system.GetRadius();
++		const b2Vec2* positionBuffer = system.GetPositionBuffer();
++		if (system.m_colorBuffer.data)
++		{
++			const b2ParticleColor* colorBuffer = system.GetColorBuffer();
++			m_debugDraw->DrawParticles(positionBuffer, radius, colorBuffer, particleCount);
++		}
++		else
++		{
++			m_debugDraw->DrawParticles(positionBuffer, radius, NULL, particleCount);
++		}
++	}
++}
++
+ void b2World::DrawDebugData()
+ {
+ 	if (m_debugDraw == NULL)
+@@ -1172,10 +1301,19 @@ void b2World::DrawDebugData()
+ 		}
+ 	}
+ 
++	if (flags & b2Draw::e_particleBit)
++	{
++		for (b2ParticleSystem* p = m_particleSystemList; p; p = p->GetNext())
++		{
++			DrawParticleSystem(*p);
++		}
++	}
++
+ 	if (flags & b2Draw::e_jointBit)
+ 	{
+ 		for (b2Joint* j = m_jointList; j; j = j->GetNext())
+ 		{
++
+ 			DrawJoint(j);
+ 		}
+ 	}
+@@ -1236,6 +1374,29 @@ void b2World::DrawDebugData()
+ 	}
+ }
+ 
++static float32 GetSmallestRadius(const b2World* world)
++{
++	float32 smallestRadius = b2_maxFloat;
++	for (const b2ParticleSystem* system = world->GetParticleSystemList();
++		 system != NULL;
++		 system = system->GetNext())
++	{
++		smallestRadius = b2Min(smallestRadius, system->GetRadius());
++	}
++	return smallestRadius;
++}
++
++int b2World::CalculateReasonableParticleIterations(float32 timeStep) const
++{
++	if (m_particleSystemList == NULL)
++		return 1;
++
++	// Use the smallest radius, since that represents the worst-case.
++	return b2CalculateParticleIterations(m_gravity.Length(),
++										 GetSmallestRadius(this),
++										 timeStep);
++}
++
+ int32 b2World::GetProxyCount() const
+ {
+ 	return m_contactManager.m_broadPhase.GetProxyCount();
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/b2World.h b/liquidfun/Box2D/Box2D/Dynamics/b2World.h
+index 2ab26ebe..ce0b8c18 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/b2World.h
++++ b/liquidfun/Box2D/Box2D/Dynamics/b2World.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2011 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -25,6 +26,7 @@
+ #include <Box2D/Dynamics/b2ContactManager.h>
+ #include <Box2D/Dynamics/b2WorldCallbacks.h>
+ #include <Box2D/Dynamics/b2TimeStep.h>
++#include <Box2D/Particle/b2ParticleSystem.h>
+ 
+ struct b2AABB;
+ struct b2BodyDef;
+@@ -34,6 +36,7 @@ class b2Body;
+ class b2Draw;
+ class b2Fixture;
+ class b2Joint;
++class b2ParticleGroup;
+ 
+ /// The world class manages all physics entities, dynamic simulation,
+ /// and asynchronous queries. The world also contains efficient memory
+@@ -54,7 +57,7 @@ public:
+ 
+ 	/// Register a contact filter to provide specific control over collision.
+ 	/// Otherwise the default filter is used (b2_defaultFilter). The listener is
+-	/// owned by you and must remain in scope. 
++	/// owned by you and must remain in scope.
+ 	void SetContactFilter(b2ContactFilter* filter);
+ 
+ 	/// Register a contact event listener. The listener is owned by you and must
+@@ -71,8 +74,8 @@ public:
+ 	/// @warning This function is locked during callbacks.
+ 	b2Body* CreateBody(const b2BodyDef* def);
+ 
+-	/// Destroy a rigid body given a definition. No reference to the definition
+-	/// is retained. This function is locked during callbacks.
++	/// Destroy a rigid body.
++	/// This function is locked during callbacks.
+ 	/// @warning This automatically deletes all associated shapes and joints.
+ 	/// @warning This function is locked during callbacks.
+ 	void DestroyBody(b2Body* body);
+@@ -86,14 +89,50 @@ public:
+ 	/// @warning This function is locked during callbacks.
+ 	void DestroyJoint(b2Joint* joint);
+ 
++	/// Create a particle system given a definition. No reference to the
++	/// definition is retained.
++	/// @warning This function is locked during callbacks.
++	b2ParticleSystem* CreateParticleSystem(const b2ParticleSystemDef* def);
++
++	/// Destroy a particle system.
++	/// @warning This function is locked during callbacks.
++	void DestroyParticleSystem(b2ParticleSystem* p);
++
+ 	/// Take a time step. This performs collision detection, integration,
+ 	/// and constraint solution.
++	/// For the numerical stability of particles, minimize the following
++	/// dimensionless gravity acceleration:
++	///     gravity / particleRadius * (timeStep / particleIterations)^2
++	/// b2CalculateParticleIterations() or
++	/// CalculateReasonableParticleIterations() help to determine the optimal
++	/// particleIterations.
+ 	/// @param timeStep the amount of time to simulate, this should not vary.
+ 	/// @param velocityIterations for the velocity constraint solver.
+ 	/// @param positionIterations for the position constraint solver.
++	/// @param particleIterations for the particle simulation.
+ 	void Step(	float32 timeStep,
+ 				int32 velocityIterations,
+-				int32 positionIterations);
++				int32 positionIterations,
++				int32 particleIterations);
++
++	/// Take a time step. This performs collision detection, integration,
++	/// and constraint solution.
++	/// @param timeStep the amount of time to simulate, this should not vary.
++	/// @param velocityIterations for the velocity constraint solver.
++	/// @param positionIterations for the position constraint solver.
++	void Step(	float32 timeStep,
++				int32 velocityIterations,
++				int32 positionIterations)
++	{
++		Step(timeStep, velocityIterations, positionIterations, 1);
++	}
++
++	/// Recommend a value to be used in `Step` for `particleIterations`.
++	/// This calculation is necessarily a simplification and should only be
++	/// used as a starting point. Please see "Particle Iterations" in the
++	/// Programmer's Guide for details.
++	/// @param timeStep is the value to be passed into `Step`.
++	int CalculateReasonableParticleIterations(float32 timeStep) const;
+ 
+ 	/// Manually clear the force buffer on all bodies. By default, forces are cleared automatically
+ 	/// after each call to Step. The default behavior is modified by calling SetAutoClearForces.
+@@ -104,7 +143,7 @@ public:
+ 	/// @see SetAutoClearForces
+ 	void ClearForces();
+ 
+-	/// Call this to draw shapes and other debug draw data.
++	/// Call this to draw shapes and other debug draw data. This is intentionally non-const.
+ 	void DrawDebugData();
+ 
+ 	/// Query the world for all fixtures that potentially overlap the
+@@ -113,6 +152,14 @@ public:
+ 	/// @param aabb the query box.
+ 	void QueryAABB(b2QueryCallback* callback, const b2AABB& aabb) const;
+ 
++	/// Query the world for all fixtures that potentially overlap the
++	/// provided shape's AABB. Calls QueryAABB internally.
++	/// @param callback a user implemented callback class.
++	/// @param shape the query shape
++	/// @param xf the transform of the AABB
++	void QueryShapeAABB(b2QueryCallback* callback, const b2Shape& shape,
++	                    const b2Transform& xf) const;
++
+ 	/// Ray-cast the world for all fixtures in the path of the ray. Your callback
+ 	/// controls whether you get the closest point, any point, or n-points.
+ 	/// The ray-cast ignores shapes that contain the starting point.
+@@ -133,6 +180,13 @@ public:
+ 	b2Joint* GetJointList();
+ 	const b2Joint* GetJointList() const;
+ 
++	/// Get the world particle-system list. With the returned body, use
++	/// b2ParticleSystem::GetNext to get the next particle-system in the world
++	/// list. A NULL particle-system indicates the end of the list.
++	/// @return the head of the world particle-system list.
++	b2ParticleSystem* GetParticleSystemList();
++	const b2ParticleSystem* GetParticleSystemList() const;
++
+ 	/// Get the world contact list. With the returned contact, use b2Contact::GetNext to get
+ 	/// the next contact in the world list. A NULL contact indicates the end of the list.
+ 	/// @return the head of the world contact list.
+@@ -181,7 +235,7 @@ public:
+ 
+ 	/// Change the global gravity vector.
+ 	void SetGravity(const b2Vec2& gravity);
+-	
++
+ 	/// Get the global gravity vector.
+ 	b2Vec2 GetGravity() const;
+ 
+@@ -209,6 +263,25 @@ public:
+ 	/// @warning this should be called outside of a time step.
+ 	void Dump();
+ 
++	/// Get API version.
++	const b2Version* GetVersion() const {
++		return m_liquidFunVersion;
++	}
++
++	/// Get API version string.
++	const char* GetVersionString() const {
++		return m_liquidFunVersionString;
++	}
++
++#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
++public:
++	/// Constructor which takes direct floats.
++	b2World(float32 gravityX, float32 gravityY);
++
++	/// Set gravity with direct floats.
++	void SetGravity(float32 gravityX, float32 gravityY);
++#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
++
+ private:
+ 
+ 	// m_flags
+@@ -223,6 +296,9 @@ private:
+ 	friend class b2Fixture;
+ 	friend class b2ContactManager;
+ 	friend class b2Controller;
++	friend class b2ParticleSystem;
++
++	void Init(const b2Vec2& gravity);
+ 
+ 	void Solve(const b2TimeStep& step);
+ 	void SolveTOI(const b2TimeStep& step);
+@@ -230,6 +306,8 @@ private:
+ 	void DrawJoint(b2Joint* joint);
+ 	void DrawShape(b2Fixture* shape, const b2Transform& xf, const b2Color& color);
+ 
++	void DrawParticleSystem(const b2ParticleSystem& system);
++
+ 	b2BlockAllocator m_blockAllocator;
+ 	b2StackAllocator m_stackAllocator;
+ 
+@@ -239,6 +317,7 @@ private:
+ 
+ 	b2Body* m_bodyList;
+ 	b2Joint* m_jointList;
++	b2ParticleSystem* m_particleSystemList;
+ 
+ 	int32 m_bodyCount;
+ 	int32 m_jointCount;
+@@ -261,6 +340,11 @@ private:
+ 	bool m_stepComplete;
+ 
+ 	b2Profile m_profile;
++
++	/// Used to reference b2_LiquidFunVersion so that it's not stripped from
++	/// the static library.
++	const b2Version *m_liquidFunVersion;
++	const char *m_liquidFunVersionString;
+ };
+ 
+ inline b2Body* b2World::GetBodyList()
+@@ -283,6 +367,16 @@ inline const b2Joint* b2World::GetJointList() const
+ 	return m_jointList;
+ }
+ 
++inline b2ParticleSystem* b2World::GetParticleSystemList()
++{
++	return m_particleSystemList;
++}
++
++inline const b2ParticleSystem* b2World::GetParticleSystemList() const
++{
++	return m_particleSystemList;
++}
++
+ inline b2Contact* b2World::GetContactList()
+ {
+ 	return m_contactManager.m_contactList;
+@@ -351,4 +445,16 @@ inline const b2Profile& b2World::GetProfile() const
+ 	return m_profile;
+ }
+ 
++#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
++inline b2World::b2World(float32 gravityX, float32 gravityY)
++{
++	Init(b2Vec2(gravityX, gravityY));
++}
++
++inline void b2World::SetGravity(float32 gravityX, float32 gravityY)
++{
++	SetGravity(b2Vec2(gravityX, gravityY));
++}
++#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
++
+ #endif
+diff --git a/liquidfun/Box2D/Box2D/Dynamics/b2WorldCallbacks.h b/liquidfun/Box2D/Box2D/Dynamics/b2WorldCallbacks.h
+index 82ffc022..f7a8b99c 100644
+--- a/liquidfun/Box2D/Box2D/Dynamics/b2WorldCallbacks.h
++++ b/liquidfun/Box2D/Box2D/Dynamics/b2WorldCallbacks.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -27,8 +28,12 @@ class b2Fixture;
+ class b2Body;
+ class b2Joint;
+ class b2Contact;
++class b2ParticleSystem;
+ struct b2ContactResult;
+ struct b2Manifold;
++class b2ParticleGroup;
++struct b2ParticleBodyContact;
++struct b2ParticleContact;
+ 
+ /// Joints and fixtures are destroyed when their associated
+ /// body is destroyed. Implement this listener so that you
+@@ -45,6 +50,23 @@ public:
+ 	/// Called when any fixture is about to be destroyed due
+ 	/// to the destruction of its parent body.
+ 	virtual void SayGoodbye(b2Fixture* fixture) = 0;
++
++	/// Called when any particle group is about to be destroyed.
++	virtual void SayGoodbye(b2ParticleGroup* group)
++	{
++		B2_NOT_USED(group);
++	}
++
++	/// Called when a particle is about to be destroyed.
++	/// The index can be used in conjunction with
++	/// b2ParticleSystem::GetUserDataBuffer() or
++	/// b2ParticleSystem::GetParticleHandleFromIndex() to determine which
++	/// particle has been destroyed.
++	virtual void SayGoodbye(b2ParticleSystem* particleSystem, int32 index)
++	{
++		B2_NOT_USED(particleSystem);
++		B2_NOT_USED(index);
++	}
+ };
+ 
+ /// Implement this class to provide collision filtering. In other words, you can implement
+@@ -57,6 +79,31 @@ public:
+ 	/// Return true if contact calculations should be performed between these two shapes.
+ 	/// @warning for performance reasons this is only called when the AABBs begin to overlap.
+ 	virtual bool ShouldCollide(b2Fixture* fixtureA, b2Fixture* fixtureB);
++
++	/// Return true if contact calculations should be performed between a
++	/// fixture and particle.  This is only called if the
++	/// b2_fixtureContactListenerParticle flag is set on the particle.
++	virtual bool ShouldCollide(b2Fixture* fixture,
++							   b2ParticleSystem* particleSystem,
++							   int32 particleIndex)
++	{
++		B2_NOT_USED(fixture);
++		B2_NOT_USED(particleIndex);
++		B2_NOT_USED(particleSystem);
++		return true;
++	}
++
++	/// Return true if contact calculations should be performed between two
++	/// particles.  This is only called if the
++	/// b2_particleContactListenerParticle flag is set on the particle.
++	virtual bool ShouldCollide(b2ParticleSystem* particleSystem,
++							   int32 particleIndexA, int32 particleIndexB)
++	{
++		B2_NOT_USED(particleSystem);
++		B2_NOT_USED(particleIndexA);
++		B2_NOT_USED(particleIndexB);
++		return true;
++	}
+ };
+ 
+ /// Contact impulses for reporting. Impulses are used instead of forces because
+@@ -89,6 +136,44 @@ public:
+ 	/// Called when two fixtures cease to touch.
+ 	virtual void EndContact(b2Contact* contact) { B2_NOT_USED(contact); }
+ 
++	/// Called when a fixture and particle start touching if the
++	/// b2_fixtureContactFilterParticle flag is set on the particle.
++	virtual void BeginContact(b2ParticleSystem* particleSystem,
++							  b2ParticleBodyContact* particleBodyContact)
++	{
++		B2_NOT_USED(particleSystem);
++		B2_NOT_USED(particleBodyContact);
++	}
++
++	/// Called when a fixture and particle stop touching if the
++	/// b2_fixtureContactFilterParticle flag is set on the particle.
++	virtual void EndContact(b2Fixture* fixture,
++							b2ParticleSystem* particleSystem, int32 index)
++	{
++		B2_NOT_USED(fixture);
++		B2_NOT_USED(particleSystem);
++		B2_NOT_USED(index);
++	}
++
++	/// Called when two particles start touching if
++	/// b2_particleContactFilterParticle flag is set on either particle.
++	virtual void BeginContact(b2ParticleSystem* particleSystem,
++							  b2ParticleContact* particleContact)
++	{
++		B2_NOT_USED(particleSystem);
++		B2_NOT_USED(particleContact);
++	}
++
++	/// Called when two particles start touching if
++	/// b2_particleContactFilterParticle flag is set on either particle.
++	virtual void EndContact(b2ParticleSystem* particleSystem,
++							int32 indexA, int32 indexB)
++	{
++		B2_NOT_USED(particleSystem);
++		B2_NOT_USED(indexA);
++		B2_NOT_USED(indexB);
++	}
++
+ 	/// This is called after a contact is updated. This allows you to inspect a
+ 	/// contact before it goes to the solver. If you are careful, you can modify the
+ 	/// contact manifold (e.g. disable contact).
+@@ -128,6 +213,27 @@ public:
+ 	/// Called for each fixture found in the query AABB.
+ 	/// @return false to terminate the query.
+ 	virtual bool ReportFixture(b2Fixture* fixture) = 0;
++
++	/// Called for each particle found in the query AABB.
++	/// @return false to terminate the query.
++	virtual bool ReportParticle(const b2ParticleSystem* particleSystem,
++								int32 index)
++	{
++		B2_NOT_USED(particleSystem);
++		B2_NOT_USED(index);
++		return false;
++	}
++
++	/// Cull an entire particle system from b2World::QueryAABB. Ignored for
++	/// b2ParticleSystem::QueryAABB.
++	/// @return true if you want to include particleSystem in the AABB query,
++	/// or false to cull particleSystem from the AABB query.
++	virtual bool ShouldQueryParticleSystem(
++		const b2ParticleSystem* particleSystem)
++	{
++		B2_NOT_USED(particleSystem);
++		return true;
++	}
+ };
+ 
+ /// Callback class for ray casts.
+@@ -150,6 +256,44 @@ public:
+ 	/// closest hit, 1 to continue
+ 	virtual float32 ReportFixture(	b2Fixture* fixture, const b2Vec2& point,
+ 									const b2Vec2& normal, float32 fraction) = 0;
++
++	/// Called for each particle found in the query. You control how the ray
++	/// cast proceeds by returning a float:
++	/// return <=0: ignore the remaining particles in this particle system
++	/// return fraction: ignore particles that are 'fraction' percent farther
++	///   along the line from 'point1' to 'point2'. Note that 'point1' and
++	///   'point2' are parameters to b2World::RayCast.
++	/// @param particleSystem the particle system containing the particle
++	/// @param index the index of the particle in particleSystem
++	/// @param point the point of intersection bt the ray and the particle
++	/// @param normal the normal vector at the point of intersection
++	/// @param fraction percent (0.0~1.0) from 'point0' to 'point1' along the
++	///   ray. Note that 'point1' and 'point2' are parameters to
++	///   b2World::RayCast.
++	/// @return <=0 to ignore rest of particle system, fraction to ignore
++	/// particles that are farther away.
++	virtual float32 ReportParticle(const b2ParticleSystem* particleSystem,
++								   int32 index, const b2Vec2& point,
++								   const b2Vec2& normal, float32 fraction)
++	{
++		B2_NOT_USED(particleSystem);
++		B2_NOT_USED(index);
++		B2_NOT_USED(&point);
++		B2_NOT_USED(&normal);
++		B2_NOT_USED(fraction);
++		return 0;
++	}
++
++	/// Cull an entire particle system from b2World::RayCast. Ignored in
++	/// b2ParticleSystem::RayCast.
++	/// @return true if you want to include particleSystem in the RayCast, or
++	/// false to cull particleSystem from the RayCast.
++	virtual bool ShouldQueryParticleSystem(
++		const b2ParticleSystem* particleSystem)
++	{
++		B2_NOT_USED(particleSystem);
++		return true;
++	}
+ };
+ 
+ #endif

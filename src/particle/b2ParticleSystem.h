@@ -18,10 +18,10 @@
 #ifndef B2_PARTICLE_SYSTEM_H
 #define B2_PARTICLE_SYSTEM_H
 
-#include <Box2D/Common/b2SlabAllocator.h>
-#include <Box2D/Common/b2GrowableBuffer.h>
-#include <Box2D/Particle/b2Particle.h>
-#include <Box2D/Dynamics/b2TimeStep.h>
+#include <box2d/b2SlabAllocator.h>
+#include <box2d/b2GrowableBuffer.h>
+#include <box2d/b2Particle.h>
+#include <box2d/b2_time_step.h>
 
 #ifdef LIQUIDFUN_UNIT_TESTS
 #include <gtest/gtest.h>

@@ -1,0 +1,2334 @@
+diff --git a/liquidfun/Box2D/Box2D/Common/b2BlockAllocator.cpp b/liquidfun/Box2D/Box2D/Common/b2BlockAllocator.cpp
+index d5fa97db..63c5584b 100644
+--- a/liquidfun/Box2D/Box2D/Common/b2BlockAllocator.cpp
++++ b/liquidfun/Box2D/Box2D/Common/b2BlockAllocator.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -17,13 +18,13 @@
+ */
+ 
+ #include <Box2D/Common/b2BlockAllocator.h>
+-#include <cstdlib>
+-#include <climits>
+-#include <cstring>
+-#include <memory>
+-using namespace std;
++#include <limits.h>
++#include <memory.h>
++#include <stddef.h>
++#include <string.h>
++#include <new> // For placement new
+ 
+-int32 b2BlockAllocator::s_blockSizes[b2_blockSizes] = 
++int32 b2BlockAllocator::s_blockSizes[b2_blockSizes] =
+ {
+ 	16,		// 0
+ 	32,		// 1
+@@ -56,12 +57,12 @@ struct b2Block
+ 
+ b2BlockAllocator::b2BlockAllocator()
+ {
+-	b2Assert(b2_blockSizes < UCHAR_MAX);
++	b2Assert((uint32)b2_blockSizes < UCHAR_MAX);
+ 
+ 	m_chunkSpace = b2_chunkArrayIncrement;
+ 	m_chunkCount = 0;
+ 	m_chunks = (b2Chunk*)b2Alloc(m_chunkSpace * sizeof(b2Chunk));
+-	
++
+ 	memset(m_chunks, 0, m_chunkSpace * sizeof(b2Chunk));
+ 	memset(m_freeLists, 0, sizeof(m_freeLists));
+ 
+@@ -96,6 +97,11 @@ b2BlockAllocator::~b2BlockAllocator()
+ 	b2Free(m_chunks);
+ }
+ 
++uint32 b2BlockAllocator::GetNumGiantAllocations() const
++{
++	return m_giants.GetList().GetLength();
++}
++
+ void* b2BlockAllocator::Allocate(int32 size)
+ {
+ 	if (size == 0)
+@@ -105,7 +111,7 @@ void* b2BlockAllocator::Allocate(int32 size)
+ 
+ 	if (size > b2_maxBlockSize)
+ 	{
+-		return b2Alloc(size);
++		return m_giants.Allocate(size);
+ 	}
+ 
+ 	int32 index = s_blockSizeLookup[size];
+@@ -131,7 +137,7 @@ void* b2BlockAllocator::Allocate(int32 size)
+ 
+ 		b2Chunk* chunk = m_chunks + m_chunkCount;
+ 		chunk->blocks = (b2Block*)b2Alloc(b2_chunkSize);
+-#if defined(_DEBUG)
++#if DEBUG
+ 		memset(chunk->blocks, 0xcd, b2_chunkSize);
+ #endif
+ 		int32 blockSize = s_blockSizes[index];
+@@ -165,14 +171,14 @@ void b2BlockAllocator::Free(void* p, int32 size)
+ 
+ 	if (size > b2_maxBlockSize)
+ 	{
+-		b2Free(p);
++		m_giants.Free(p);
+ 		return;
+ 	}
+ 
+ 	int32 index = s_blockSizeLookup[size];
+ 	b2Assert(0 <= index && index < b2_blockSizes);
+ 
+-#ifdef _DEBUG
++#if B2_ASSERT_ENABLED
+ 	// Verify the memory address and size is valid.
+ 	int32 blockSize = s_blockSizes[index];
+ 	bool found = false;
+@@ -194,8 +200,10 @@ void b2BlockAllocator::Free(void* p, int32 size)
+ 	}
+ 
+ 	b2Assert(found);
++#endif // B2_ASSERT_ENABLED
+ 
+-	memset(p, 0xfd, blockSize);
++#if DEBUG
++	memset(p, 0xfd, s_blockSizes[index]);
+ #endif
+ 
+ 	b2Block* block = (b2Block*)p;
+diff --git a/liquidfun/Box2D/Box2D/Common/b2BlockAllocator.h b/liquidfun/Box2D/Box2D/Common/b2BlockAllocator.h
+index cea3cef9..68a2c144 100644
+--- a/liquidfun/Box2D/Box2D/Common/b2BlockAllocator.h
++++ b/liquidfun/Box2D/Box2D/Common/b2BlockAllocator.h
+@@ -20,6 +20,7 @@
+ #define B2_BLOCK_ALLOCATOR_H
+ 
+ #include <Box2D/Common/b2Settings.h>
++#include <Box2D/Common/b2TrackedBlock.h>
+ 
+ const int32 b2_chunkSize = 16 * 1024;
+ const int32 b2_maxBlockSize = 640;
+@@ -38,22 +39,27 @@ public:
+ 	b2BlockAllocator();
+ 	~b2BlockAllocator();
+ 
+-	/// Allocate memory. This will use b2Alloc if the size is larger than b2_maxBlockSize.
++	/// Allocate memory. This uses b2Alloc if the size is larger than b2_maxBlockSize.
+ 	void* Allocate(int32 size);
+ 
+-	/// Free memory. This will use b2Free if the size is larger than b2_maxBlockSize.
++	/// Free memory. This uses b2Free if the size is larger than b2_maxBlockSize.
+ 	void Free(void* p, int32 size);
+ 
+ 	void Clear();
+ 
+-private:
++	/// Returns the number of allocations larger than the max block size.
++	uint32 GetNumGiantAllocations() const;
+ 
++private:
+ 	b2Chunk* m_chunks;
+ 	int32 m_chunkCount;
+ 	int32 m_chunkSpace;
+ 
+ 	b2Block* m_freeLists[b2_blockSizes];
+ 
++	// Record giant allocations--ones bigger than the max block size
++	b2TrackedBlockAllocator m_giants;
++
+ 	static int32 s_blockSizes[b2_blockSizes];
+ 	static uint8 s_blockSizeLookup[b2_maxBlockSize + 1];
+ 	static bool s_blockSizeLookupInitialized;
+diff --git a/liquidfun/Box2D/Box2D/Common/b2Draw.h b/liquidfun/Box2D/Box2D/Common/b2Draw.h
+index 20359c91..e841fdc9 100644
+--- a/liquidfun/Box2D/Box2D/Common/b2Draw.h
++++ b/liquidfun/Box2D/Box2D/Common/b2Draw.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2011 Erin Catto http://box2d.org
++* Copyright (c) 2014 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -20,6 +21,7 @@
+ #define B2_DRAW_H
+ 
+ #include <Box2D/Common/b2Math.h>
++#include <Box2D/Particle/b2Particle.h>
+ 
+ /// Color for debug drawing. Each value has the range [0,1].
+ struct b2Color
+@@ -45,7 +47,8 @@ public:
+ 		e_jointBit				= 0x0002,	///< draw joint connections
+ 		e_aabbBit				= 0x0004,	///< draw axis aligned bounding boxes
+ 		e_pairBit				= 0x0008,	///< draw broad-phase pairs
+-		e_centerOfMassBit		= 0x0010	///< draw center of mass frame
++		e_centerOfMassBit			= 0x0010,	///< draw center of mass frame
++		e_particleBit				= 0x0020  ///< draw particles
+ 	};
+ 
+ 	/// Set the drawing flags.
+@@ -53,7 +56,7 @@ public:
+ 
+ 	/// Get the drawing flags.
+ 	uint32 GetFlags() const;
+-	
++
+ 	/// Append flags to the current flags.
+ 	void AppendFlags(uint32 flags);
+ 
+@@ -68,10 +71,13 @@ public:
+ 
+ 	/// Draw a circle.
+ 	virtual void DrawCircle(const b2Vec2& center, float32 radius, const b2Color& color) = 0;
+-	
++
+ 	/// Draw a solid circle.
+ 	virtual void DrawSolidCircle(const b2Vec2& center, float32 radius, const b2Vec2& axis, const b2Color& color) = 0;
+-	
++
++	/// Draw a particle array
++	virtual void DrawParticles(const b2Vec2 *centers, float32 radius, const b2ParticleColor *colors, int32 count) = 0;
++
+ 	/// Draw a line segment.
+ 	virtual void DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Color& color) = 0;
+ 
+diff --git a/liquidfun/Box2D/Box2D/Common/b2FreeList.cpp b/liquidfun/Box2D/Box2D/Common/b2FreeList.cpp
+new file mode 100644
+index 00000000..09e9151c
+--- /dev/null
++++ b/liquidfun/Box2D/Box2D/Common/b2FreeList.cpp
+@@ -0,0 +1,57 @@
++/*
++* Copyright (c) 2014 Google, Inc.
++*
++* This software is provided 'as-is', without any express or implied
++* warranty.  In no event will the authors be held liable for any damages
++* arising from the use of this software.
++* Permission is granted to anyone to use this software for any purpose,
++* including commercial applications, and to alter it and redistribute it
++* freely, subject to the following restrictions:
++* 1. The origin of this software must not be misrepresented; you must not
++* claim that you wrote the original software. If you use this software
++* in a product, an acknowledgment in the product documentation would be
++* appreciated but is not required.
++* 2. Altered source versions must be plainly marked as such, and must not be
++* misrepresented as being the original software.
++* 3. This notice may not be removed or altered from any source distribution.
++*/
++#include <Box2D/Common/b2FreeList.h>
++#include <Box2D/Common/b2IntrusiveList.h>
++#include <Box2D/Common/b2Settings.h>
++
++/// Allocate an item from the freelist.
++b2IntrusiveListNode* b2FreeList::Allocate()
++{
++	if (m_free.IsEmpty()) return NULL;
++	b2IntrusiveListNode * const node = m_free.GetNext();
++	node->Remove();
++	m_allocated.InsertBefore(node);
++	return node;
++}
++
++void b2FreeList::Free(b2IntrusiveListNode* node)
++{
++	b2Assert(node);
++#if B2_FREE_LIST_CHECK_ALLOCATED_ON_FREE
++	b2Assert(m_allocated.FindNodeInList(node));
++#endif // B2_FREE_LIST_CHECK_ALLOCATED_ON_FREE
++	node->Remove();
++	m_free.InsertAfter(node);
++}
++
++void b2FreeList::AddToFreeList(b2IntrusiveListNode* node)
++{
++	b2Assert(node);
++	b2Assert(!node->InList());
++	m_free.InsertBefore(node);
++}
++
++void b2FreeList::RemoveAll()
++{
++	while (!m_allocated.IsEmpty()) {
++		m_allocated.GetNext()->Remove();
++	}
++	while (!m_free.IsEmpty()) {
++		m_free.GetNext()->Remove();
++	}
++}
+diff --git a/liquidfun/Box2D/Box2D/Common/b2FreeList.h b/liquidfun/Box2D/Box2D/Common/b2FreeList.h
+new file mode 100644
+index 00000000..bf4f8454
+--- /dev/null
++++ b/liquidfun/Box2D/Box2D/Common/b2FreeList.h
+@@ -0,0 +1,113 @@
++/*
++* Copyright (c) 2014 Google, Inc.
++*
++* This software is provided 'as-is', without any express or implied
++* warranty.  In no event will the authors be held liable for any damages
++* arising from the use of this software.
++* Permission is granted to anyone to use this software for any purpose,
++* including commercial applications, and to alter it and redistribute it
++* freely, subject to the following restrictions:
++* 1. The origin of this software must not be misrepresented; you must not
++* claim that you wrote the original software. If you use this software
++* in a product, an acknowledgment in the product documentation would be
++* appreciated but is not required.
++* 2. Altered source versions must be plainly marked as such, and must not be
++* misrepresented as being the original software.
++* 3. This notice may not be removed or altered from any source distribution.
++*/
++#ifndef B2_FREE_LIST_H
++#define B2_FREE_LIST_H
++
++#include <Box2D/Common/b2IntrusiveList.h>
++#include <Box2D/Common/b2Settings.h>
++
++/// When B2_FREE_LIST_CHECK_ALLOCATED_ON_FREE is 1, b2FreeList::Free() will
++/// check that the deallocated node was allocated from the freelist.
++#ifndef B2_FREE_LIST_CHECK_ALLOCATED_ON_FREE
++#define B2_FREE_LIST_CHECK_ALLOCATED_ON_FREE 0
++#endif // B2_FREE_LIST_CHECK_ALLOCATED_ON_FREE
++
++
++/// Fast - O(1) - list based allocator for items that can be inserted into
++/// b2IntrusiveListNode lists.
++class b2FreeList
++{
++public:
++	/// Construct the free list.
++	b2FreeList() { }
++
++	/// Destroy the free list.
++	~b2FreeList() { }
++
++	/// Allocate an item from the freelist.
++	b2IntrusiveListNode* Allocate();
++
++	/// Free an item from the freelist.
++	void Free(b2IntrusiveListNode* node);
++
++	/// Add an item to the freelist so that it can be allocated using
++	/// b2FreeList::Allocate().
++	void AddToFreeList(b2IntrusiveListNode* node);
++
++	/// Remove all items (allocated and free) from the freelist.
++	void RemoveAll();
++
++	/// Get the list which tracks allocated items.
++	const b2IntrusiveListNode& GetAllocatedList() const {
++		return m_allocated;
++	}
++
++	/// Get the list which tracks free items.
++	const b2IntrusiveListNode& GetFreeList() const {
++		return m_free;
++	}
++
++protected:
++	/// List of allocated items.
++	b2IntrusiveListNode m_allocated;
++	/// List of free items.
++	b2IntrusiveListNode m_free;
++};
++
++
++/// Typed b2FreeList which manages items of type T assuming T implements
++/// the GetInstanceFromListNode() and GetListNode() methods.
++template<typename T>
++class b2TypedFreeList {
++public:
++	/// Construct the free list.
++	b2TypedFreeList() { }
++
++	/// Destroy the free list.
++	~b2TypedFreeList() { }
++
++	/// Allocate an item from the free list.
++	T* Allocate() {
++		b2IntrusiveListNode* const node = m_freeList.Allocate();
++		if (!node) return NULL;
++		return T::GetInstanceFromListNode(node);
++	}
++
++	/// Free an item.
++	void Free(T* instance) {
++		b2Assert(instance);
++		m_freeList.Free(instance->GetListNode());
++	}
++
++	/// Add an item to the freelist so that it can be allocated with
++	/// b2TypedFreeList::Allocate().
++	void AddToFreeList(T* instance)
++	{
++		b2Assert(instance);
++		m_freeList.AddToFreeList(instance->GetListNode());
++	}
++
++	// Get the underlying b2FreeList.
++	b2FreeList* GetFreeList() { return &m_freeList; }
++	const b2FreeList* GetFreeList() const { return &m_freeList; }
++
++protected:
++	b2FreeList m_freeList;
++};
++
++#endif  // B2_FREE_LIST_H
+diff --git a/liquidfun/Box2D/Box2D/Common/b2GrowableBuffer.h b/liquidfun/Box2D/Box2D/Common/b2GrowableBuffer.h
+new file mode 100644
+index 00000000..189d6106
+--- /dev/null
++++ b/liquidfun/Box2D/Box2D/Common/b2GrowableBuffer.h
+@@ -0,0 +1,200 @@
++/*
++* Copyright (c) 2014 Google, Inc.
++*
++* This software is provided 'as-is', without any express or implied
++* warranty.  In no event will the authors be held liable for any damages
++* arising from the use of this software.
++* Permission is granted to anyone to use this software for any purpose,
++* including commercial applications, and to alter it and redistribute it
++* freely, subject to the following restrictions:
++* 1. The origin of this software must not be misrepresented; you must not
++* claim that you wrote the original software. If you use this software
++* in a product, an acknowledgment in the product documentation would be
++* appreciated but is not required.
++* 2. Altered source versions must be plainly marked as such, and must not be
++* misrepresented as being the original software.
++* 3. This notice may not be removed or altered from any source distribution.
++*/
++#ifndef B2_GROWABLE_BUFFER_H
++#define B2_GROWABLE_BUFFER_H
++
++#include <Box2D/Common/b2BlockAllocator.h>
++#include <string.h>
++#include <memory.h>
++#include <algorithm>
++
++
++/// A simple array-like container, similar to std::vector.
++/// If we ever start using stl, we should replace this with std::vector.
++template <typename T>
++class b2GrowableBuffer
++{
++public:
++	b2GrowableBuffer(b2BlockAllocator& allocator) :
++		data(NULL),
++		count(0),
++		capacity(0),
++		allocator(&allocator)
++	{
++	#if defined(LIQUIDFUN_SIMD_NEON)
++		// b2ParticleAssembly.neon.s assumes these values are at fixed offsets.
++        // If this assert fails, be sure to update the assembly offsets!
++		// ldr r3, [r9, #0] @ r3 = out = contacts.data
++        // ldr r6, [r9, #8] @ r6 = contacts.capacity
++		b2Assert((intptr_t)&data - (intptr_t)(this) == 0
++			  && (intptr_t)&capacity - (intptr_t)(this) == 8);
++	#endif // defined(LIQUIDFUN_SIMD_NEON)
++	}
++
++	b2GrowableBuffer(const b2GrowableBuffer<T>& rhs) :
++		data(NULL),
++		count(rhs.count),
++		capacity(rhs.capacity),
++		allocator(rhs.allocator)
++	{
++		if (rhs.data != NULL)
++		{
++			data = (T*) allocator->Allocate(sizeof(T) * capacity);
++			memcpy(data, rhs.data, sizeof(T) * count);
++		}
++	}
++
++	~b2GrowableBuffer()
++	{
++		Free();
++	}
++
++	T& Append()
++	{
++		if (count >= capacity)
++		{
++			Grow();
++		}
++		return data[count++];
++	}
++
++	void Reserve(int32 newCapacity)
++	{
++		if (capacity >= newCapacity)
++			return;
++
++		// Reallocate and copy.
++		T* newData = (T*) allocator->Allocate(sizeof(T) * newCapacity);
++		if (data)
++		{
++			memcpy(newData, data, sizeof(T) * count);
++			allocator->Free(data, sizeof(T) * capacity);
++		}
++
++		// Update pointer and capacity.
++		capacity = newCapacity;
++		data = newData;
++	}
++
++	void Grow()
++	{
++		// Double the capacity.
++		int32 newCapacity = capacity ? 2 * capacity
++						  : b2_minParticleSystemBufferCapacity;
++		b2Assert(newCapacity > capacity);
++		Reserve(newCapacity);
++	}
++
++	void Free()
++	{
++		if (data == NULL)
++			return;
++
++		allocator->Free(data, sizeof(data[0]) * capacity);
++		data = NULL;
++		capacity = 0;
++		count = 0;
++	}
++
++	void Shorten(const T* newEnd)
++	{
++		b2Assert(newEnd >= data);
++		count = (int32) (newEnd - data);
++	}
++
++	T& operator[](int i)
++	{
++		return data[i];
++	}
++
++	const T& operator[](int i) const
++	{
++		return data[i];
++	}
++
++	T* Data()
++	{
++		return data;
++	}
++
++	const T* Data() const
++	{
++		return data;
++	}
++
++	T* Begin()
++	{
++		return data;
++	}
++
++	const T* Begin() const
++	{
++		return data;
++	}
++
++	T* End()
++	{
++		return &data[count];
++	}
++
++	const T* End() const
++	{
++		return &data[count];
++	}
++
++	int32 GetCount() const
++	{
++		return count;
++	}
++
++	void SetCount(int32 newCount)
++	{
++		b2Assert(0 <= newCount && newCount <= capacity);
++		count = newCount;
++	}
++
++	int32 GetCapacity() const
++	{
++		return capacity;
++	}
++
++	template<class UnaryPredicate>
++	T* RemoveIf(UnaryPredicate pred)
++	{
++		T* newEnd = std::remove_if(data, data + count, pred);
++		Shorten(newEnd);
++		return newEnd;
++	}
++
++	template<class BinaryPredicate>
++	T* Unique(BinaryPredicate pred)
++	{
++		T* newEnd = std::unique(data, data + count, pred);
++		Shorten(newEnd);
++		return newEnd;
++	}
++
++private:
++	T* data;
++	int32 count;
++	int32 capacity;
++	b2BlockAllocator* allocator;
++};
++
++#endif // B2_GROWABLE_BUFFER_H
++
+diff --git a/liquidfun/Box2D/Box2D/Common/b2GrowableStack.h b/liquidfun/Box2D/Box2D/Common/b2GrowableStack.h
+index 27a8eb25..2d676013 100644
+--- a/liquidfun/Box2D/Box2D/Common/b2GrowableStack.h
++++ b/liquidfun/Box2D/Box2D/Common/b2GrowableStack.h
+@@ -18,8 +18,10 @@
+ 
+ #ifndef B2_GROWABLE_STACK_H
+ #define B2_GROWABLE_STACK_H
++
+ #include <Box2D/Common/b2Settings.h>
+-#include <cstring>
++#include <string.h>
++#include <memory.h>
+ 
+ /// This is a growable LIFO stack with an initial capacity of N.
+ /// If the stack size exceeds the initial capacity, the heap is used
+@@ -51,7 +53,7 @@ public:
+ 			T* old = m_stack;
+ 			m_capacity *= 2;
+ 			m_stack = (T*)b2Alloc(m_capacity * sizeof(T));
+-			std::memcpy(m_stack, old, m_count * sizeof(T));
++			memcpy(m_stack, old, m_count * sizeof(T));
+ 			if (old != m_array)
+ 			{
+ 				b2Free(old);
+diff --git a/liquidfun/Box2D/Box2D/Common/b2IntrusiveList.h b/liquidfun/Box2D/Box2D/Common/b2IntrusiveList.h
+new file mode 100644
+index 00000000..542154c7
+--- /dev/null
++++ b/liquidfun/Box2D/Box2D/Common/b2IntrusiveList.h
+@@ -0,0 +1,369 @@
++/*
++* Copyright (c) 2014 Google, Inc.
++*
++* This software is provided 'as-is', without any express or implied
++* warranty.  In no event will the authors be held liable for any damages
++* arising from the use of this software.
++* Permission is granted to anyone to use this software for any purpose,
++* including commercial applications, and to alter it and redistribute it
++* freely, subject to the following restrictions:
++* 1. The origin of this software must not be misrepresented; you must not
++* claim that you wrote the original software. If you use this software
++* in a product, an acknowledgment in the product documentation would be
++* appreciated but is not required.
++* 2. Altered source versions must be plainly marked as such, and must not be
++* misrepresented as being the original software.
++* 3. This notice may not be removed or altered from any source distribution.
++*/
++#ifndef B2_INTRUSIVE_LIST
++#define B2_INTRUSIVE_LIST
++
++#include <Box2D/Common/b2Settings.h>
++
++// Whether to enable b2IntrusiveList::ValidateList().
++// Be careful when enabling this since this changes the size of
++// b2IntrusiveListNode so make sure *all* projects that include Box2D.h
++// also define this value in the same way to avoid data corruption.
++#ifndef B2_INTRUSIVE_LIST_VALIDATE
++#define B2_INTRUSIVE_LIST_VALIDATE 0
++#endif  // B2_INTRUSIVE_LIST_VALIDATE
++
++/// b2IntrusiveListNode is used to implement an intrusive doubly-linked
++/// list.
++///
++/// For example:
++///
++/// class MyClass {
++/// public:
++/// 	MyClass(const char *msg) : m_msg(msg) {}
++/// 	const char* GetMessage() const { return m_msg; }
++/// 	B2_INTRUSIVE_LIST_GET_NODE(m_node);
++/// 	B2_INTRUSIVE_LIST_NODE_GET_CLASS(MyClass, m_node);
++/// private:
++/// 	b2IntrusiveListNode m_node;
++/// 	const char *m_msg;
++/// };
++///
++/// int main(int argc, char *argv[]) {
++/// 	b2IntrusiveListNode list; // NOTE: type is NOT MyClass
++/// 	MyClass a("this");
++/// 	MyClass b("is");
++/// 	MyClass c("a");
++/// 	MyClass d("test");
++/// 	list.InsertBefore(a.GetListNode());
++/// 	list.InsertBefore(b.GetListNode());
++/// 	list.InsertBefore(c.GetListNode());
++/// 	list.InsertBefore(d.GetListNode());
++/// 	for (b2IntrusiveListNode* node = list.GetNext();
++/// 		 node != list.GetTerminator(); node = node->GetNext()) {
++/// 		MyClass *cls = MyClass::GetInstanceFromListNode(node);
++/// 		printf("%s\n", cls->GetMessage());
++/// 	}
++/// 	return 0;
++/// }
++class b2IntrusiveListNode
++{
++public:
++	/// Initialize the node.
++	b2IntrusiveListNode()
++	{
++		Initialize();
++#if B2_INTRUSIVE_LIST_VALIDATE
++		m_magic = k_magic;
++#endif // B2_INTRUSIVE_LIST_VALIDATE
++	}
++
++	/// If the node is in a list, remove it from the list.
++	~b2IntrusiveListNode()
++	{
++		Remove();
++#if B2_INTRUSIVE_LIST_VALIDATE
++		m_magic = 0;
++#endif // B2_INTRUSIVE_LIST_VALIDATE
++	}
++
++	/// Insert this node after the specified node.
++	void InsertAfter(b2IntrusiveListNode* const node)
++	{
++		b2Assert(!node->InList());
++		node->m_next = m_next;
++		node->m_prev = this;
++		m_next->m_prev = node;
++		m_next = node;
++	}
++
++	/// Insert this node before the specified node.
++	void InsertBefore(b2IntrusiveListNode* const node)
++	{
++		b2Assert(!node->InList());
++		node->m_next = this;
++		node->m_prev = m_prev;
++		m_prev->m_next = node;
++		m_prev = node;
++	}
++
++	/// Get the terminator of the list.
++	const b2IntrusiveListNode* GetTerminator() const
++	{
++		return this;
++	}
++
++	/// Remove this node from the list it's currently in.
++	b2IntrusiveListNode* Remove()
++	{
++		m_prev->m_next = m_next;
++		m_next->m_prev = m_prev;
++		Initialize();
++		return this;
++	}
++
++	/// Determine whether this list is empty or the node isn't in a list.
++	bool IsEmpty() const
++	{
++	  return GetNext() == this;
++	}
++
++	/// Determine whether this node is in a list or the list contains nodes.
++	bool InList() const
++	{
++	  return !IsEmpty();
++	}
++
++	/// Calculate the length of the list.
++	uint32 GetLength() const
++	{
++		uint32 length = 0;
++		const b2IntrusiveListNode * const terminator = GetTerminator();
++		for (const b2IntrusiveListNode* node = GetNext();
++			 node != terminator; node = node->GetNext())
++		{
++			length++;
++		}
++		return length;
++	}
++
++	/// Get the next node in the list.
++	b2IntrusiveListNode* GetNext() const
++	{
++		return m_next;
++	}
++
++	/// Get the previous node in the list.
++	b2IntrusiveListNode* GetPrevious() const
++	{
++		return m_prev;
++	}
++
++	/// If B2_INTRUSIVE_LIST_VALIDATE is 1 perform a very rough validation
++	/// of all nodes in the list.
++	bool ValidateList() const
++	{
++#if B2_INTRUSIVE_LIST_VALIDATE
++	  if (m_magic != k_magic) return false;
++	  const b2IntrusiveListNode * const terminator = GetTerminator();
++	  for (b2IntrusiveListNode *node = GetNext(); node != terminator;
++		   node = node->GetNext()) {
++		if (node->m_magic != k_magic) return false;
++	  }
++#endif  // B2_INTRUSIVE_LIST_VALIDATE
++	  return true;
++	}
++
++	/// Determine whether the specified node is present in this list.
++	bool FindNodeInList(b2IntrusiveListNode* const nodeToFind) const
++	{
++		const b2IntrusiveListNode * const terminator = GetTerminator();
++		for (b2IntrusiveListNode *node = GetNext(); node != terminator;
++			 node = node->GetNext())
++		{
++			if (nodeToFind == node) return true;
++		}
++		return false;
++	}
++
++private:
++	/// Initialize the list node.
++	void Initialize()
++	{
++		m_next = this;
++		m_prev = this;
++	}
++
++private:
++#if B2_INTRUSIVE_LIST_VALIDATE
++	uint32 m_magic;
++#endif  // B2_INTRUSIVE_LIST_VALIDATE
++	/// The next node in the list.
++	b2IntrusiveListNode *m_prev;
++	/// The previous node in the list.
++	b2IntrusiveListNode *m_next;
++
++private:
++#if B2_INTRUSIVE_LIST_VALIDATE
++	static const uint32 k_magic = 0x7157ac01;
++#endif  // B2_INTRUSIVE_LIST_VALIDATE
++};
++
++/// Declares the member function GetListNode() of Class to retrieve a pointer
++/// to NodeMemberName.
++/// See #B2_INTRUSIVE_LIST_NODE_GET_CLASS_ACCESSOR()
++#define B2_INTRUSIVE_LIST_GET_NODE(NodeMemberName) \
++	b2IntrusiveListNode* GetListNode() { return &NodeMemberName; } \
++	const b2IntrusiveListNode* GetListNode() const { return &NodeMemberName; }
++
++/// Declares the member function FunctionName of Class to retrieve a pointer
++/// to a Class instance from a list node pointer.   NodeMemberName references
++/// the name of the b2IntrusiveListNode member of Class.
++#define B2_INTRUSIVE_LIST_NODE_GET_CLASS_ACCESSOR( \
++	Class, NodeMemberName, FunctionName) \
++	static Class* FunctionName(b2IntrusiveListNode *node) \
++	{ \
++		Class *cls = NULL; \
++		/* This effectively performs offsetof(Class, NodeMemberName) */ \
++		/* which ends up in the undefined behavior realm of C++ but in */ \
++		/* practice this works with most compilers. */ \
++		return reinterpret_cast<Class*>((uint8*)(node) - \
++										(uint8*)(&cls->NodeMemberName)); \
++	} \
++	\
++	static const Class* FunctionName(const b2IntrusiveListNode *node) \
++	{ \
++		return FunctionName(const_cast<b2IntrusiveListNode*>(node)); \
++	}
++
++/// Declares the member function GetInstanceFromListNode() of Class to retrieve
++/// a pointer to a Class instance from a list node pointer.  NodeMemberName
++/// reference the name of the b2IntrusiveListNode member of Class.
++#define B2_INTRUSIVE_LIST_NODE_GET_CLASS(Class, NodeMemberName) \
++	B2_INTRUSIVE_LIST_NODE_GET_CLASS_ACCESSOR(Class, NodeMemberName, \
++											  GetInstanceFromListNode)
++
++/// b2TypedIntrusiveListNode which supports inserting an object into a single
++/// doubly linked list.  For objects that need to be inserted in multiple
++/// doubly linked lists, use b2IntrusiveListNode.
++///
++/// For example:
++///
++/// class IntegerItem : public b2TypedIntrusiveListNode<IntegerItem>
++/// {
++/// public:
++/// 	IntegerItem(int32 value) : m_value(value) { }
++/// 	~IntegerItem() { }
++/// 	int32 GetValue() const { return m_value; }
++/// private:
++/// 	int32 m_value;
++/// };
++///
++/// int main(int argc, const char *arvg[]) {
++/// 	b2TypedIntrusiveListNode<IntegerItem> list;
++/// 	IntegerItem a(1);
++/// 	IntegerItem b(2);
++/// 	IntegerItem c(3);
++/// 	list.InsertBefore(&a);
++/// 	list.InsertBefore(&b);
++/// 	list.InsertBefore(&c);
++/// 	for (IntegerItem* item = list.GetNext();
++/// 		 item != list.GetTerminator(); item = item->GetNext())
++/// 	{
++/// 		printf("%d\n", item->GetValue());
++/// 	}
++/// }
++template<typename T>
++class b2TypedIntrusiveListNode
++{
++public:
++	b2TypedIntrusiveListNode() { }
++	~b2TypedIntrusiveListNode() { }
++
++	/// Insert this object after the specified object.
++	void InsertAfter(T* const obj)
++	{
++		b2Assert(obj);
++		GetListNode()->InsertAfter(obj->GetListNode());
++	}
++
++	/// Insert this object before the specified object.
++	void InsertBefore(T* const obj)
++	{
++		b2Assert(obj);
++		GetListNode()->InsertBefore(obj->GetListNode());
++	}
++
++	/// Get the next object in the list.
++	/// Check against GetTerminator() before deferencing the object.
++	T* GetNext() const
++	{
++		return GetInstanceFromListNode(GetListNode()->GetNext());
++	}
++
++	/// Get the previous object in the list.
++	/// Check against GetTerminator() before deferencing the object.
++	T* GetPrevious() const
++	{
++		return GetInstanceFromListNode(GetListNode()->GetPrevious());
++	}
++
++	/// Get the terminator of the list.
++	/// This should not be dereferenced as it is a pointer to
++	/// b2TypedIntrusiveListNode<T> *not* T.
++	T* GetTerminator() const
++	{
++		return (T*)GetListNode();
++	}
++
++	/// Remove this object from the list it's currently in.
++	T* Remove()
++	{
++		GetListNode()->Remove();
++		return GetInstanceFromListNode(GetListNode());
++	}
++
++	/// Determine whether this object is in a list.
++	bool InList() const
++	{
++		return GetListNode()->InList();
++	}
++
++	// Determine whether this list is empty.
++	bool IsEmpty() const
++	{
++		return GetListNode()->IsEmpty();
++	}
++
++	/// Calculate the length of the list.
++	uint32 GetLength() const
++	{
++		return GetListNode()->GetLength();
++	}
++
++	B2_INTRUSIVE_LIST_GET_NODE(m_node);
++
++private:
++	// Node within an intrusive list.
++	b2IntrusiveListNode m_node;
++
++public:
++	/// Get a pointer to the instance of T that contains "node".
++	static T* GetInstanceFromListNode(b2IntrusiveListNode* const node)
++	{
++		b2Assert(node);
++		// Calculate the pointer to T from the offset.
++		return (T*)((uint8*)node - GetNodeOffset(node));
++	}
++
++private:
++	// Get the offset of m_node within this class.
++	static int32 GetNodeOffset(b2IntrusiveListNode* const node)
++	{
++		b2Assert(node);
++		// Perform some type punning to calculate the offset of m_node in T.
++		// WARNING: This could result in undefined behavior with some C++
++		// compilers.
++		T* obj = (T*)node;
++		int32 nodeOffset = (int32)((uint8*)&obj->m_node - (uint8*)obj);
++		return nodeOffset;
++	}
++};
++
++#endif // B2_INTRUSIVE_LIST
++
+diff --git a/liquidfun/Box2D/Box2D/Common/b2Math.h b/liquidfun/Box2D/Box2D/Common/b2Math.h
+index 685b7e49..34679d2d 100644
+--- a/liquidfun/Box2D/Box2D/Common/b2Math.h
++++ b/liquidfun/Box2D/Box2D/Common/b2Math.h
+@@ -20,24 +20,16 @@
+ #define B2_MATH_H
+ 
+ #include <Box2D/Common/b2Settings.h>
++#include <math.h>
+ 
+-#include <cmath>
+-#include <cfloat>
+-#include <cstddef>
+-#include <limits>
+-
+-/// This function is used to ensure that a floating point number is
+-/// not a NaN or infinity.
++/// This function is used to ensure that a floating point number is not a NaN or infinity.
+ inline bool b2IsValid(float32 x)
+ {
+-	if (x != x)
+-	{
+-		// NaN.
+-		return false;
+-	}
+-
+-	float32 infinity = std::numeric_limits<float32>::infinity();
+-	return -infinity < x && x < infinity;
++	union {
++		float32 f;
++		int32 i;
++	} v = { x };
++	return (v.i & 0x7f800000) != 0x7f800000;
+ }
+ 
+ /// This is a approximate yet fast inverse square-root.
+@@ -57,8 +49,8 @@ inline float32 b2InvSqrt(float32 x)
+ 	return x;
+ }
+ 
+-#define	b2Sqrt(x)	std::sqrt(x)
+-#define	b2Atan2(y, x)	std::atan2(y, x)
++#define	b2Sqrt(x)	sqrtf(x)
++#define	b2Atan2(y, x)	atan2f(y, x)
+ 
+ /// A 2D column vector.
+ struct b2Vec2
+@@ -77,7 +69,7 @@ struct b2Vec2
+ 
+ 	/// Negate this vector.
+ 	b2Vec2 operator -() const { b2Vec2 v; v.Set(-x, -y); return v; }
+-	
++
+ 	/// Read from and indexed element.
+ 	float32 operator () (int32 i) const
+ 	{
+@@ -95,7 +87,7 @@ struct b2Vec2
+ 	{
+ 		x += v.x; y += v.y;
+ 	}
+-	
++
+ 	/// Subtract a vector from this vector.
+ 	void operator -= (const b2Vec2& v)
+ 	{
+@@ -151,7 +143,31 @@ struct b2Vec2
+ 	float32 x, y;
+ };
+ 
+-/// A 2D column vector with 3 elements.
++/// Add a float to a vector.
++inline b2Vec2 operator + (const b2Vec2& v, float f)
++{
++	return b2Vec2(v.x + f, v.y + f);
++}
++
++/// Substract a float from a vector.
++inline b2Vec2 operator - (const b2Vec2& v, float f)
++{
++	return b2Vec2(v.x - f, v.y - f);
++}
++
++/// Multiply a float with a vector.
++inline b2Vec2 operator * (const b2Vec2& v, float f)
++{
++	return b2Vec2(v.x * f, v.y * f);
++}
++
++/// Divide a vector by a float.
++inline b2Vec2 operator / (const b2Vec2& v, float f)
++{
++	return b2Vec2(v.x / f, v.y / f);
++}
++
++/// A 3D column vector with 3 elements.
+ struct b2Vec3
+ {
+ 	/// Default constructor does nothing (for performance).
+@@ -187,9 +203,43 @@ struct b2Vec3
+ 		x *= s; y *= s; z *= s;
+ 	}
+ 
++		/// Get the length of this vector (the norm).
++	float32 Length() const
++	{
++		return b2Sqrt(x * x + y * y + z * z);
++	}
++
++	/// Convert this vector into a unit vector. Returns the length.
++	float32 Normalize()
++	{
++		float32 length = Length();
++		if (length < b2_epsilon)
++		{
++			return 0.0f;
++		}
++		float32 invLength = 1.0f / length;
++		x *= invLength;
++		y *= invLength;
++		z *= invLength;
++
++		return length;
++	}
++
+ 	float32 x, y, z;
+ };
+ 
++/// A 4D column vector with 4 elements.
++struct b2Vec4
++{
++	/// Default constructor does nothing (for performance).
++	b2Vec4() {}
++
++	/// Construct using coordinates.
++	b2Vec4(float32 x, float32 y, float32 z, float32 w) : x(x), y(y), z(z), w(w) {}
++
++	float32 x, y, z, w;
++};
++
+ /// A 2-by-2 matrix. Stored in column-major order.
+ struct b2Mat22
+ {
+@@ -380,6 +430,20 @@ struct b2Transform
+ 		q.Set(angle);
+ 	}
+ 
++#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
++	/// Get x-coordinate of p.
++	float32 GetPositionX() const { return p.x; }
++
++	/// Get y-coordinate of p.
++	float32 GetPositionY() const { return p.y; }
++
++	/// Get sine-component of q.
++	float32 GetRotationSin() const { return q.s; }
++
++	/// Get cosine-component of q.
++	float32 GetRotationCos() const { return q.c; }
++#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
++
+ 	b2Vec2 p;
+ 	b2Rot q;
+ };
+@@ -475,6 +539,11 @@ inline bool operator == (const b2Vec2& a, const b2Vec2& b)
+ 	return a.x == b.x && a.y == b.y;
+ }
+ 
++inline bool operator != (const b2Vec2& a, const b2Vec2& b)
++{
++	return !operator==(a, b);
++}
++
+ inline float32 b2Distance(const b2Vec2& a, const b2Vec2& b)
+ {
+ 	b2Vec2 c = a - b;
+diff --git a/liquidfun/Box2D/Box2D/Common/b2Settings.cpp b/liquidfun/Box2D/Box2D/Common/b2Settings.cpp
+index 1232fde5..e305d18c 100644
+--- a/liquidfun/Box2D/Box2D/Common/b2Settings.cpp
++++ b/liquidfun/Box2D/Box2D/Common/b2Settings.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -17,28 +18,119 @@
+ */
+ 
+ #include <Box2D/Common/b2Settings.h>
+-#include <cstdlib>
+-#include <cstdio>
+-#include <cstdarg>
++#include <stdio.h>
++#include <stdarg.h>
++#include <stdlib.h>
+ 
+ b2Version b2_version = {2, 3, 0};
+ 
++#define LIQUIDFUN_VERSION_MAJOR 1
++#define LIQUIDFUN_VERSION_MINOR 1
++#define LIQUIDFUN_VERSION_REVISION 0
++#define LIQUIDFUN_STRING_EXPAND(X) #X
++#define LIQUIDFUN_STRING(X) LIQUIDFUN_STRING_EXPAND(X)
++
++static void* b2AllocDefault(int32 size, void* callbackData);
++static void b2FreeDefault(void* mem, void* callbackData);
++
++const b2Version b2_liquidFunVersion = {
++	LIQUIDFUN_VERSION_MAJOR, LIQUIDFUN_VERSION_MINOR,
++	LIQUIDFUN_VERSION_REVISION,
++};
++
++const char *b2_liquidFunVersionString =
++	"LiquidFun "
++	LIQUIDFUN_STRING(LIQUIDFUN_VERSION_MAJOR) "."
++	LIQUIDFUN_STRING(LIQUIDFUN_VERSION_MINOR) "."
++	LIQUIDFUN_STRING(LIQUIDFUN_VERSION_REVISION);
++
++static int32 b2_numAllocs = 0;
++
++// Initialize default allocator.
++static b2AllocFunction b2_allocCallback = b2AllocDefault;
++static b2FreeFunction b2_freeCallback = b2FreeDefault;
++static void *b2_callbackData = NULL;
++
++// Default implementation of b2AllocFunction.
++static void* b2AllocDefault(int32 size, void* callbackData)
++{
++	B2_NOT_USED(callbackData);
++	return malloc(size);
++}
++
++// Default implementation of b2FreeFunction.
++static void b2FreeDefault(void* mem, void* callbackData)
++{
++	B2_NOT_USED(callbackData);
++	free(mem);
++}
++
++/// Set alloc and free callbacks to override the default behavior of using
++/// malloc() and free() for dynamic memory allocation.
++/// Set allocCallback and freeCallback to NULL to restore the default
++/// allocator (malloc / free).
++void b2SetAllocFreeCallbacks(b2AllocFunction allocCallback,
++							 b2FreeFunction freeCallback, void* callbackData)
++{
++	b2Assert((allocCallback && freeCallback) ||
++			 (!allocCallback && !freeCallback));
++	b2Assert(0 == b2GetNumAllocs());
++	if (allocCallback && freeCallback)
++	{
++		b2_allocCallback = allocCallback;
++		b2_freeCallback = freeCallback;
++		b2_callbackData = callbackData;
++	}
++	else
++	{
++		b2_allocCallback = b2AllocDefault;
++		b2_freeCallback = b2FreeDefault;
++		b2_callbackData = NULL;
++	}
++}
++
+ // Memory allocators. Modify these to use your own allocator.
+ void* b2Alloc(int32 size)
+ {
+-	return malloc(size);
++	b2_numAllocs++;
++	return b2_allocCallback(size, b2_callbackData);
+ }
+ 
+ void b2Free(void* mem)
+ {
+-	free(mem);
++	b2_numAllocs--;
++	b2_freeCallback(mem, b2_callbackData);
++}
++
++void b2SetNumAllocs(const int32 numAllocs)
++{
++	b2_numAllocs = numAllocs;
++}
++
++int32 b2GetNumAllocs()
++{
++	return b2_numAllocs;
+ }
+ 
+ // You can modify this to use your logging facility.
+ void b2Log(const char* string, ...)
+ {
++#if DEBUG
+ 	va_list args;
+ 	va_start(args, string);
+ 	vprintf(string, args);
+ 	va_end(args);
++#else
++	B2_NOT_USED(string);
++#endif
+ }
++
++class Validator
++{
++public:
++	Validator()
++	{
++		b2Assert(sizeof(uint64)==8);
++		b2Assert(sizeof(int64)==8);
++	}
++} validate;
+diff --git a/liquidfun/Box2D/Box2D/Common/b2Settings.h b/liquidfun/Box2D/Box2D/Common/b2Settings.h
+index 44c0eb15..268520d7 100644
+--- a/liquidfun/Box2D/Box2D/Common/b2Settings.h
++++ b/liquidfun/Box2D/Box2D/Common/b2Settings.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -19,11 +20,28 @@
+ #ifndef B2_SETTINGS_H
+ #define B2_SETTINGS_H
+ 
+-#include <cassert>
+-#include <cmath>
++#include <stddef.h>
++#include <assert.h>
++#include <float.h>
+ 
+ #define B2_NOT_USED(x) ((void)(x))
++#if DEBUG && !defined(NDEBUG)
+ #define b2Assert(A) assert(A)
++#define B2_ASSERT_ENABLED 1
++#else
++#define b2Assert(A)
++#define B2_ASSERT_ENABLED 0
++#endif
++
++// Statement which is compiled out when DEBUG isn't defined.
++#if DEBUG
++#define B2_DEBUG_STATEMENT(A) A
++#else
++#define B2_DEBUG_STATEMENT(A)
++#endif  // DEBUG
++
++// Calculate the size of a static array.
++#define B2_ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+ 
+ typedef signed char	int8;
+ typedef signed short int16;
+@@ -34,10 +52,36 @@ typedef unsigned int uint32;
+ typedef float float32;
+ typedef double float64;
+ 
++#ifdef WIN32
++typedef __int64   int64;
++typedef unsigned __int64   uint64;
++#else // !WIN32
++typedef long long int64;
++typedef unsigned long long uint64;
++#endif
++
+ #define	b2_maxFloat		FLT_MAX
+ #define	b2_epsilon		FLT_EPSILON
+ #define b2_pi			3.14159265359f
+ 
++#if !defined(b2Inline)
++#if defined(__GNUC__)
++#define b2Inline __attribute__((always_inline))
++#else
++#define b2Inline inline
++#endif // defined(__GNUC__)
++#endif // !defined(b2Inline)
++
++// We expand the API so that other languages (e.g. Java) can call into
++// our C++ more easily. Only set if when the flag is not externally defined.
++#if !defined(LIQUIDFUN_EXTERNAL_LANGUAGE_API)
++#if defined(SWIG) || defined(LIQUIDFUN_UNIT_TESTS)
++#define LIQUIDFUN_EXTERNAL_LANGUAGE_API 1
++#else
++#define LIQUIDFUN_EXTERNAL_LANGUAGE_API 0
++#endif
++#endif
++
+ /// @file
+ /// Global tuning constants based on meters-kilograms-seconds (MKS) units.
+ ///
+@@ -113,6 +157,45 @@ typedef double float64;
+ #define b2_toiBaugarte				0.75f
+ 
+ 
++// Particle
++
++/// NEON SIMD requires 16-bit particle indices
++#if !defined(B2_USE_16_BIT_PARTICLE_INDICES) && defined(LIQUIDFUN_SIMD_NEON)
++#define B2_USE_16_BIT_PARTICLE_INDICES
++#endif
++
++/// A symbolic constant that stands for particle allocation error.
++#define b2_invalidParticleIndex		(-1)
++
++#ifdef B2_USE_16_BIT_PARTICLE_INDICES
++#define b2_maxParticleIndex			0x7FFF
++#else
++#define b2_maxParticleIndex			0x7FFFFFFF
++#endif
++
++/// The default distance between particles, multiplied by the particle diameter.
++#define b2_particleStride			0.75f
++
++/// The minimum particle weight that produces pressure.
++#define b2_minParticleWeight			1.0f
++
++/// The upper limit for particle pressure.
++#define b2_maxParticlePressure		0.25f
++
++/// The upper limit for force between particles.
++#define b2_maxParticleForce		0.5f
++
++/// The maximum distance between particles in a triad, multiplied by the
++/// particle diameter.
++#define b2_maxTriadDistance			2
++#define b2_maxTriadDistanceSquared		(b2_maxTriadDistance * b2_maxTriadDistance)
++
++/// The initial size of particle data buffers.
++#define b2_minParticleSystemBufferCapacity	256
++
++/// The time into the future that collisions against barrier particles will be detected.
++#define b2_barrierCollisionTime 2.5f
++
+ // Sleep
+ 
+ /// The time that a body must be still before it will go to sleep.
+@@ -132,6 +215,27 @@ void* b2Alloc(int32 size);
+ /// If you implement b2Alloc, you should also implement this function.
+ void b2Free(void* mem);
+ 
++/// Use this function to override b2Alloc() without recompiling this library.
++typedef void* (*b2AllocFunction)(int32 size, void* callbackData);
++/// Use this function to override b2Free() without recompiling this library.
++typedef void (*b2FreeFunction)(void* mem, void* callbackData);
++
++/// Set alloc and free callbacks to override the default behavior of using
++/// malloc() and free() for dynamic memory allocation.
++/// Set allocCallback and freeCallback to NULL to restore the default
++/// allocator (malloc / free).
++void b2SetAllocFreeCallbacks(b2AllocFunction allocCallback,
++							 b2FreeFunction freeCallback,
++							 void* callbackData);
++
++/// Set the number of calls to b2Alloc minus the number of calls to b2Free.
++/// This can be used to disable the empty heap check in
++/// b2SetAllocFreeCallbacks() which can be useful for testing.
++void b2SetNumAllocs(const int32 numAllocs);
++
++/// Get number of calls to b2Alloc minus number of calls to b2Free.
++int32 b2GetNumAllocs();
++
+ /// Logging function.
+ void b2Log(const char* string, ...);
+ 
+@@ -145,6 +249,19 @@ struct b2Version
+ };
+ 
+ /// Current version.
++/// Version of Box2D, LiquidFun is based upon.
+ extern b2Version b2_version;
+ 
++/// Global variable is used to identify the version of LiquidFun.
++extern const b2Version b2_liquidFunVersion;
++/// String which identifies the current version of LiquidFun.
++/// b2_liquidFunVersionString is used by Google developers to identify which
++/// applications uploaded to Google Play are using this library.  This allows
++/// the development team at Google to determine the popularity of the library.
++/// How it works: Applications that are uploaded to the Google Play Store are
++/// scanned for this version string.  We track which applications are using it
++/// to measure popularity.  You are free to remove it (of course) but we would
++/// appreciate if you left it in.
++extern const char *b2_liquidFunVersionString;
++
+ #endif
+diff --git a/liquidfun/Box2D/Box2D/Common/b2SlabAllocator.h b/liquidfun/Box2D/Box2D/Common/b2SlabAllocator.h
+new file mode 100644
+index 00000000..6eceb3d6
+--- /dev/null
++++ b/liquidfun/Box2D/Box2D/Common/b2SlabAllocator.h
+@@ -0,0 +1,244 @@
++/*
++* Copyright (c) 2014 Google, Inc.
++*
++* This software is provided 'as-is', without any express or implied
++* warranty.  In no event will the authors be held liable for any damages
++* arising from the use of this software.
++* Permission is granted to anyone to use this software for any purpose,
++* including commercial applications, and to alter it and redistribute it
++* freely, subject to the following restrictions:
++* 1. The origin of this software must not be misrepresented; you must not
++* claim that you wrote the original software. If you use this software
++* in a product, an acknowledgment in the product documentation would be
++* appreciated but is not required.
++* 2. Altered source versions must be plainly marked as such, and must not be
++* misrepresented as being the original software.
++* 3. This notice may not be removed or altered from any source distribution.
++*/
++#ifndef B2_SLAB_ALLOCATOR_H
++#define B2_SLAB_ALLOCATOR_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <new>
++#include <Box2D/Common/b2IntrusiveList.h>
++#include <Box2D/Common/b2FreeList.h>
++#include <Box2D/Common/b2Settings.h>
++#include <Box2D/Common/b2TrackedBlock.h>
++
++/// Freelist based allocator for fixed sized items from slabs (memory
++/// preallocated from the heap).
++/// T should be a class which has a default constructor and implements the
++/// member function "b2IntrusiveList* GetListNode()".
++/// All objects in a slab are constructed when a slab is created and destructed
++/// when a slab is freed.
++template<typename T>
++class b2SlabAllocator
++{
++private:
++	// Information about a slab.
++	class Slab
++	{
++	public:
++		/// Initialize a slab with the number of items it contains.
++		Slab(uint32 numberOfItems) :
++			m_numberOfItems(numberOfItems)
++		{
++			B2_NOT_USED(m_padding);
++			// This assumes that this class is packed on at least a 4-byte
++			// boundary with no padding.  Verify the assumption.
++			b2Assert(sizeof(*this) == b2_mallocAlignment);
++		}
++
++		/// Empty destructor.
++		~Slab() { }
++
++		/// Get the number of items in this slab.
++		uint32 GetNumberOfItems() const { return m_numberOfItems; }
++
++		/// Get a pointer to the first item in the slab.
++		T* GetFirstItem() const
++		{
++			return (T*)((uint8*)(this + 1));
++		}
++
++		/// Get a pointer to the end of the slab.
++		/// NOTE: This is a pointer after the last byte of the slab not the
++		/// last item in the slab.
++		T* GetItemEnd() const { return GetFirstItem() + GetNumberOfItems(); }
++
++	private:
++		/// Number of items in the slab.
++		uint32 m_numberOfItems;
++		/// Padding to align the first item in the slab to b2_mallocAlignment.
++		uint8 m_padding[b2_mallocAlignment - sizeof(uint32)];
++	};
++
++public:
++	/// Initialize the allocator to allocate itemsPerSlab of type T for each
++	/// slab that is allocated.
++	b2SlabAllocator(const uint32 itemsPerSlab) :
++		m_itemsPerSlab(itemsPerSlab)
++	{
++	}
++
++	/// Free all allocated slabs.
++	~b2SlabAllocator()
++	{
++		FreeAllSlabs();
++	}
++
++	/// Set size of the next allocated slab using the number of items per
++	/// slab.  Setting this value to zero disables further slab allocation.
++	void SetItemsPerSlab(uint32 itemsPerSlab)
++	{
++		m_itemsPerSlab = itemsPerSlab;
++	}
++
++	// Get the size of the next allocated slab.
++	uint32 GetItemsPerSlab() const
++	{
++		return m_itemsPerSlab;
++	}
++
++	/// Allocate a item from the slab.
++	T* Allocate()
++	{
++		// Allocate a slab if needed here.
++		if (m_freeList.GetFreeList()->GetFreeList().IsEmpty() &&
++			!AllocateSlab())
++			return NULL;
++		return m_freeList.Allocate();
++	}
++
++	/// Free an item from the slab.
++	void Free(T *object)
++	{
++		m_freeList.Free(object);
++	}
++
++	/// Allocate a slab, construct instances of T and add them to the free
++	/// pool.
++	bool AllocateSlab()
++	{
++		if (!m_itemsPerSlab) return false;
++		const uint32 slabSize = sizeof(Slab) + (sizeof(T) * m_itemsPerSlab);
++		void* const memory = m_slabs.Allocate(slabSize);
++		if (!memory) return false;
++
++		Slab* const slab = new (BlockGetSlab(memory)) Slab(m_itemsPerSlab);
++		T* item = slab->GetFirstItem();
++		for (uint32 i = 0; i < m_itemsPerSlab; ++i, ++item)
++		{
++			m_freeList.AddToFreeList(new (item) T);
++		}
++		return true;
++	}
++
++	/// Free all slabs.
++	void FreeAllSlabs()
++	{
++		const b2TypedIntrusiveListNode<b2TrackedBlock>& slabList =
++			m_slabs.GetList();
++		while (!slabList.IsEmpty())
++		{
++			FreeSlab(BlockGetSlab(slabList.GetNext()->GetMemory()));
++		}
++	}
++
++	/// Free all empty slabs.
++	/// This method is slow - O(M^N) - since this class doesn't track
++	/// the association between each item and slab.
++	void FreeEmptySlabs()
++	{
++		const b2IntrusiveListNode& freeItemList =
++			m_freeList.GetFreeList()->GetFreeList();
++		const b2IntrusiveListNode* freeItemListTerminator =
++			freeItemList.GetTerminator();
++		const b2TypedIntrusiveListNode<b2TrackedBlock>& slabList =
++			m_slabs.GetList();
++		const b2TypedIntrusiveListNode<b2TrackedBlock>* slabListTerminator =
++			slabList.GetTerminator();
++		b2TrackedBlock* block = slabList.GetNext();
++		while (block != slabListTerminator)
++		{
++			// Get the Slab from the memory associated with the block.
++			Slab* const slab = BlockGetSlab(block->GetMemory());
++			block = block->GetNext();
++
++			// Determine the range of memory the Slab owns.
++			const uint8* const slabItemStart = (uint8*)slab->GetFirstItem();
++			const uint8* const slabItemEnd = (uint8*)slab->GetItemEnd();
++
++			// Count all free items that are owned by the current slab.
++			uint8 freeItems = 0;
++			bool empty = false;
++			for (b2IntrusiveListNode* itemNode = freeItemList.GetNext();
++				 itemNode != freeItemListTerminator;
++				 itemNode = itemNode->GetNext())
++			{
++				const uint8* itemNodeAddress = (uint8*)itemNode;
++				if (itemNodeAddress >= slabItemStart &&
++					itemNodeAddress <= slabItemEnd)
++				{
++					++freeItems;
++					if (slab->GetNumberOfItems() == freeItems)
++					{
++						empty = true;
++						break;
++					}
++				}
++			}
++			// If a slab is empty, free it.
++			if (empty)
++			{
++				FreeSlab(slab);
++			}
++		}
++	}
++
++	/// Get the item allocator freelist.
++	const b2TypedFreeList<T>& GetFreeList() const
++	{
++		return m_freeList;
++	}
++
++private:
++	/// Destroy all objects in a slab and free the slab.
++	void FreeSlab(Slab * const slab)
++	{
++		b2Assert(slab);
++		const uint32 numberOfItems = slab->GetNumberOfItems();
++		T* item = slab->GetFirstItem();
++		for (uint32 i = 0; i < numberOfItems; ++i, ++item)
++		{
++			item->~T();
++		}
++		slab->~Slab();
++		m_slabs.Free(slab);
++	}
++
++	/// Get a pointer to a Slab from a block of memory in m_slabs.
++	Slab* BlockGetSlab(void *memory)
++	{
++		return (Slab*)memory;
++	}
++
++	/// Get a pointer to the first item in the array of items referenced by a
++	/// Slab.
++	T* SlabGetFirstItem(Slab* slab)
++	{
++		return (T*)(slab + 1);
++	}
++
++private:
++	/// Contains a list of b2TrackedBlock instances where each b2TrackedBlock's
++	/// associated user memory contains a Slab followed by instances of T.
++	b2TrackedBlockAllocator m_slabs;
++	/// Number of items to allocate in the next allocated slab.
++	uint32 m_itemsPerSlab;
++	/// Freelist which contains instances of T.
++	b2TypedFreeList<T> m_freeList;
++};
++
++#endif  // B2_SLAB_ALLOCATOR_H
+diff --git a/liquidfun/Box2D/Box2D/Common/b2StackAllocator.cpp b/liquidfun/Box2D/Box2D/Common/b2StackAllocator.cpp
+index 321cabb2..f9d295b4 100644
+--- a/liquidfun/Box2D/Box2D/Common/b2StackAllocator.cpp
++++ b/liquidfun/Box2D/Box2D/Common/b2StackAllocator.cpp
+@@ -18,6 +18,7 @@
+ 
+ #include <Box2D/Common/b2StackAllocator.h>
+ #include <Box2D/Common/b2Math.h>
++#include <string.h>
+ 
+ b2StackAllocator::b2StackAllocator()
+ {
+@@ -36,28 +37,64 @@ b2StackAllocator::~b2StackAllocator()
+ void* b2StackAllocator::Allocate(int32 size)
+ {
+ 	b2Assert(m_entryCount < b2_maxStackEntries);
+-
++	const int32 roundedSize = (size + ALIGN_MASK) & ~ALIGN_MASK;
+ 	b2StackEntry* entry = m_entries + m_entryCount;
+-	entry->size = size;
+-	if (m_index + size > b2_stackSize)
++	entry->size = roundedSize;
++	if (m_index + roundedSize > b2_stackSize)
+ 	{
+-		entry->data = (char*)b2Alloc(size);
++		entry->data = (char*)b2Alloc(roundedSize);
+ 		entry->usedMalloc = true;
+ 	}
+ 	else
+ 	{
+ 		entry->data = m_data + m_index;
+ 		entry->usedMalloc = false;
+-		m_index += size;
++		m_index += roundedSize;
+ 	}
+ 
+-	m_allocation += size;
++	m_allocation += roundedSize;
+ 	m_maxAllocation = b2Max(m_maxAllocation, m_allocation);
+ 	++m_entryCount;
+ 
+ 	return entry->data;
+ }
+ 
++void* b2StackAllocator::Reallocate(void* p, int32 size)
++{
++	b2Assert(m_entryCount > 0);
++	b2StackEntry* entry = m_entries + m_entryCount - 1;
++	b2Assert(p == entry->data);
++	B2_NOT_USED(p);
++	int32 incrementSize = size - entry->size;
++	if (incrementSize > 0)
++	{
++		if (entry->usedMalloc)
++		{
++			void* data = b2Alloc(size);
++			memcpy(data, entry->data, entry->size);
++			b2Free(entry->data);
++			entry->data = (char*)data;
++		}
++		else if (m_index + incrementSize > b2_stackSize)
++		{
++			void* data = b2Alloc(size);
++			memcpy(data, entry->data, entry->size);
++			m_index -= entry->size;
++			entry->data = (char*)data;
++			entry->usedMalloc = true;
++		}
++		else
++		{
++			m_index += incrementSize;
++			m_allocation += incrementSize;
++			m_maxAllocation = b2Max(m_maxAllocation, m_allocation);
++		}
++		entry->size = size;
++	}
++
++	return entry->data;
++}
++
+ void b2StackAllocator::Free(void* p)
+ {
+ 	b2Assert(m_entryCount > 0);
+diff --git a/liquidfun/Box2D/Box2D/Common/b2StackAllocator.h b/liquidfun/Box2D/Box2D/Common/b2StackAllocator.h
+index bb87a7ed..16dfc0c3 100644
+--- a/liquidfun/Box2D/Box2D/Common/b2StackAllocator.h
++++ b/liquidfun/Box2D/Box2D/Common/b2StackAllocator.h
+@@ -37,10 +37,14 @@ struct b2StackEntry
+ class b2StackAllocator
+ {
+ public:
++	enum { MIN_ALIGNMENT = sizeof(void*) }; // Must be a power of 2
++	enum { ALIGN_MASK = MIN_ALIGNMENT - 1 };
++
+ 	b2StackAllocator();
+ 	~b2StackAllocator();
+ 
+ 	void* Allocate(int32 size);
++	void* Reallocate(void* p, int32 size);
+ 	void Free(void* p);
+ 
+ 	int32 GetMaxAllocation() const;
+diff --git a/liquidfun/Box2D/Box2D/Common/b2Stat.cpp b/liquidfun/Box2D/Box2D/Common/b2Stat.cpp
+new file mode 100644
+index 00000000..d3048078
+--- /dev/null
++++ b/liquidfun/Box2D/Box2D/Common/b2Stat.cpp
+@@ -0,0 +1,67 @@
++/*
++* Copyright (c) 2013 Google, Inc.
++*
++* This software is provided 'as-is', without any express or implied
++* warranty.  In no event will the authors be held liable for any damages
++* arising from the use of this software.
++* Permission is granted to anyone to use this software for any purpose,
++* including commercial applications, and to alter it and redistribute it
++* freely, subject to the following restrictions:
++* 1. The origin of this software must not be misrepresented; you must not
++* claim that you wrote the original software. If you use this software
++* in a product, an acknowledgment in the product documentation would be
++* appreciated but is not required.
++* 2. Altered source versions must be plainly marked as such, and must not be
++* misrepresented as being the original software.
++* 3. This notice may not be removed or altered from any source distribution.
++*/
++#include "b2Stat.h"
++
++#include <algorithm>
++#include <cfloat>
++
++b2Stat::b2Stat()
++{
++	Clear();
++}
++
++void b2Stat::Record( float32 t )
++{
++	m_total += t;
++	m_min = std::min(m_min,t);
++	m_max = std::max(m_max,t);
++	m_count++;
++}
++
++int b2Stat::GetCount() const
++{
++	return m_count;
++}
++
++float32 b2Stat::GetMean() const
++{
++	if (m_count == 0)
++	{
++		return 0.0f;
++	}
++	return (float32)(m_total / m_count);
++}
++
++float32 b2Stat::GetMin() const
++{
++	return m_min;
++}
++
++float32 b2Stat::GetMax() const
++{
++	return m_max;
++}
++
++void b2Stat::Clear()
++{
++	m_count = 0;
++	m_total = 0;
++	m_min = FLT_MAX;
++	m_max = -FLT_MAX;
++}
++
+diff --git a/liquidfun/Box2D/Box2D/Common/b2Stat.h b/liquidfun/Box2D/Box2D/Common/b2Stat.h
+new file mode 100644
+index 00000000..c549401b
+--- /dev/null
++++ b/liquidfun/Box2D/Box2D/Common/b2Stat.h
+@@ -0,0 +1,57 @@
++/*
++* Copyright (c) 2013 Google, Inc.
++*
++* This software is provided 'as-is', without any express or implied
++* warranty.  In no event will the authors be held liable for any damages
++* arising from the use of this software.
++* Permission is granted to anyone to use this software for any purpose,
++* including commercial applications, and to alter it and redistribute it
++* freely, subject to the following restrictions:
++* 1. The origin of this software must not be misrepresented; you must not
++* claim that you wrote the original software. If you use this software
++* in a product, an acknowledgment in the product documentation would be
++* appreciated but is not required.
++* 2. Altered source versions must be plainly marked as such, and must not be
++* misrepresented as being the original software.
++* 3. This notice may not be removed or altered from any source distribution.
++*/
++#ifndef B2_STAT
++#define B2_STAT
++
++#include <Box2D/Common/b2Settings.h>
++
++/// Calculates min/max/mean of a set of samples
++class b2Stat
++{
++public:
++	b2Stat();
++
++	/// Record a sample
++	void Record( float32 t );
++
++	/// Returns the number of recorded samples
++	int GetCount() const;
++
++	/// Returns the mean of all recorded samples,
++	/// Returns 0 if there are no recorded samples
++	float32 GetMean() const;
++
++	/// Returns the min of all recorded samples,
++	/// FLT_MAX if there are no recorded samples
++	float32 GetMin() const;
++
++	/// Returns the max of all recorded samples,
++	/// -FLT_MAX if there are no recorded samples
++	float32 GetMax() const;
++
++	/// Erase all recorded samples
++	void Clear();
++private:
++
++	int m_count;
++	float64 m_total;
++	float32 m_min;
++	float32 m_max;
++};
++
++#endif
+diff --git a/liquidfun/Box2D/Box2D/Common/b2Timer.cpp b/liquidfun/Box2D/Box2D/Common/b2Timer.cpp
+index 75a8ce63..383ed3dc 100644
+--- a/liquidfun/Box2D/Box2D/Common/b2Timer.cpp
++++ b/liquidfun/Box2D/Box2D/Common/b2Timer.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2011 Erin Catto http://box2d.org
++* Copyright (c) 2014 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -22,15 +23,27 @@
+ 
+ float64 b2Timer::s_invFrequency = 0.0f;
+ 
++#define WIN32_LEAN_AND_MEAN
+ #include <windows.h>
+ 
++typedef BOOL (WINAPI *SystemGetTimeFunc)(_Out_ LARGE_INTEGER *lpFrequency);
++SystemGetTimeFunc systemGetTimeFunc = ::QueryPerformanceCounter;
++SystemGetTimeFunc systemGetFreqFunc = ::QueryPerformanceFrequency;
++
++int64 b2Timer::GetTicks()
++{
++	LARGE_INTEGER largeInteger;
++	systemGetTimeFunc(&largeInteger);
++	return largeInteger.QuadPart;
++}
++
+ b2Timer::b2Timer()
+ {
+ 	LARGE_INTEGER largeInteger;
+ 
+ 	if (s_invFrequency == 0.0f)
+ 	{
+-		QueryPerformanceFrequency(&largeInteger);
++		systemGetFreqFunc(&largeInteger);
+ 		s_invFrequency = float64(largeInteger.QuadPart);
+ 		if (s_invFrequency > 0.0f)
+ 		{
+@@ -38,48 +51,69 @@ b2Timer::b2Timer()
+ 		}
+ 	}
+ 
+-	QueryPerformanceCounter(&largeInteger);
+-	m_start = float64(largeInteger.QuadPart);
++	m_start = GetTicks();
+ }
+ 
+ void b2Timer::Reset()
+ {
+-	LARGE_INTEGER largeInteger;
+-	QueryPerformanceCounter(&largeInteger);
+-	m_start = float64(largeInteger.QuadPart);
++	m_start = GetTicks();
+ }
+ 
+ float32 b2Timer::GetMilliseconds() const
+ {
+-	LARGE_INTEGER largeInteger;
+-	QueryPerformanceCounter(&largeInteger);
+-	float64 count = float64(largeInteger.QuadPart);
+-	float32 ms = float32(s_invFrequency * (count - m_start));
+-	return ms;
++	int64 elapsed = GetTicks() - m_start;
++	return (float32)(s_invFrequency * elapsed);
+ }
+ 
+ #elif defined(__linux__) || defined (__APPLE__)
+ 
+ #include <sys/time.h>
++#include <time.h>
++
++// systemGetTimeFunc is defined with external linkage to allow unit
++// test to mock out the system time function
++
++#if defined(__linux__)
++
++typedef int (*SystemGetTimeFunc)(clockid_t clk_id, struct timespec *tp);
++SystemGetTimeFunc systemGetTimeFunc = ::clock_gettime;
++
++#elif defined(__APPLE__)
++
++typedef int (*SystemGetTimeFunc)(struct timeval * tp, void * tzp);
++SystemGetTimeFunc systemGetTimeFunc = ::gettimeofday;
++
++#endif
++
++int64 b2Timer::GetTicks()
++{
++	static const int NSEC_PER_SEC = 1000000000;
++
++#ifdef __linux__
++	timespec ts;
++	systemGetTimeFunc(CLOCK_MONOTONIC,&ts);
++	return ((int64)ts.tv_sec) * NSEC_PER_SEC + ts.tv_nsec;
++#else
++	timeval t;
++	systemGetTimeFunc(&t, 0);
++	return ((int64)t.tv_sec) * NSEC_PER_SEC + t.tv_usec * 1000;
++#endif
++}
+ 
+ b2Timer::b2Timer()
+ {
+-    Reset();
++	Reset();
+ }
+ 
+ void b2Timer::Reset()
+ {
+-    timeval t;
+-    gettimeofday(&t, 0);
+-    m_start_sec = t.tv_sec;
+-    m_start_usec = t.tv_usec;
++	m_start = GetTicks();
+ }
+ 
+ float32 b2Timer::GetMilliseconds() const
+ {
+-    timeval t;
+-    gettimeofday(&t, 0);
+-    return 1000.0f * (t.tv_sec - m_start_sec) + 0.001f * (t.tv_usec - m_start_usec);
++	static const float32 kTicksToMs = 0.000001f;
++	return kTicksToMs * (float32)(GetTicks() - m_start);
+ }
+ 
+ #else
+diff --git a/liquidfun/Box2D/Box2D/Common/b2Timer.h b/liquidfun/Box2D/Box2D/Common/b2Timer.h
+index edf1ca45..eb983cd3 100644
+--- a/liquidfun/Box2D/Box2D/Common/b2Timer.h
++++ b/liquidfun/Box2D/Box2D/Common/b2Timer.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2011 Erin Catto http://box2d.org
++* Copyright (c) 2014 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -37,14 +38,13 @@ public:
+ 	float32 GetMilliseconds() const;
+ 
+ private:
++	/// Get platform specific tick count
++	static int64 GetTicks();
+ 
+ #if defined(_WIN32)
+-	float64 m_start;
+ 	static float64 s_invFrequency;
+-#elif defined(__linux__) || defined (__APPLE__)
+-	unsigned long m_start_sec;
+-	unsigned long m_start_usec;
+ #endif
++	int64 m_start;
+ };
+ 
+ #endif
+diff --git a/liquidfun/Box2D/Box2D/Common/b2TrackedBlock.cpp b/liquidfun/Box2D/Box2D/Common/b2TrackedBlock.cpp
+new file mode 100644
+index 00000000..27f838c9
+--- /dev/null
++++ b/liquidfun/Box2D/Box2D/Common/b2TrackedBlock.cpp
+@@ -0,0 +1,111 @@
++/*
++* Copyright (c) 2014 Google, Inc.
++*
++* This software is provided 'as-is', without any express or implied
++* warranty.  In no event will the authors be held liable for any damages
++* arising from the use of this software.
++* Permission is granted to anyone to use this software for any purpose,
++* including commercial applications, and to alter it and redistribute it
++* freely, subject to the following restrictions:
++* 1. The origin of this software must not be misrepresented; you must not
++* claim that you wrote the original software. If you use this software
++* in a product, an acknowledgment in the product documentation would be
++* appreciated but is not required.
++* 2. Altered source versions must be plainly marked as such, and must not be
++* misrepresented as being the original software.
++* 3. This notice may not be removed or altered from any source distribution.
++*/
++
++#include <Box2D/Common/b2TrackedBlock.h>
++#include <stddef.h>
++#include <stdint.h>
++#include <new>
++
++// Initialize this block with a reference to "this".
++b2TrackedBlock::b2TrackedBlock()
++{
++	b2TrackedBlock** pointerToThis =
++		(b2TrackedBlock**)((uint8*)GetMemory() - sizeof(b2TrackedBlock**));
++	*pointerToThis = this;
++}
++
++/// Get the allocated memory associated with this block.
++void* b2TrackedBlock::GetMemory() const
++{
++	// The size of data in this without padding.
++	static const uint32 kSizeOfThisWithNoPadding =
++		sizeof(*this) - sizeof(m_padding) + sizeof(b2TrackedBlock**);
++
++	// Make sure b2_mallocAlignment is base2.
++	b2Assert(((b2_mallocAlignment - 1) & b2_mallocAlignment) == 0);
++
++	// Round the pointer following data in this to b2_mallocAlignment.
++	uint8* const aligned = (uint8*)(
++		((uintptr_t)this + kSizeOfThisWithNoPadding + b2_mallocAlignment - 1) &
++		~((uintptr_t)b2_mallocAlignment - 1));
++	// Verify offset doesn't overlap data in this.
++	b2Assert((uintptr_t)aligned - (uintptr_t)this >= kSizeOfThisWithNoPadding);
++	return aligned;
++}
++
++/// Allocate a b2TrackedBlock returning a pointer to memory of size
++/// bytes that can be used by the caller.
++void* b2TrackedBlock::Allocate(uint32 size)
++{
++	void* memory = (b2TrackedBlock*)b2Alloc(sizeof(b2TrackedBlock) +
++											size);
++	if (!memory)
++	{
++		return NULL;
++	}
++	return (new(memory) b2TrackedBlock)->GetMemory();
++}
++
++/// Get a b2TrackedBlock from a pointer to memory returned by
++/// b2TrackedBlock::Allocate().
++b2TrackedBlock* b2TrackedBlock::GetFromMemory(void *memory)
++{
++	uint8* const aligned = (uint8*)memory;
++	b2Assert(memory);
++	b2TrackedBlock **blockPtr = (b2TrackedBlock**)(aligned -
++												   sizeof(b2TrackedBlock**));
++	b2Assert(*blockPtr);
++	return *blockPtr;
++}
++
++/// Free a block of memory returned by b2TrackedBlock::Allocate()
++void b2TrackedBlock::Free(void *memory)
++{
++	Free(GetFromMemory(memory));
++}
++
++/// Free a b2TrackedBlock.
++void b2TrackedBlock::Free(b2TrackedBlock *block)
++{
++	b2Assert(block);
++	block->~b2TrackedBlock();
++	b2Free(block);
++}
++
++/// Allocate a block of size bytes using b2TrackedBlock::Allocate().
++void* b2TrackedBlockAllocator::Allocate(uint32 size)
++{
++	void *memory = b2TrackedBlock::Allocate(size);
++	m_blocks.InsertBefore(b2TrackedBlock::GetFromMemory(memory));
++	return memory;
++}
++
++/// Free a block returned by Allocate().
++void b2TrackedBlockAllocator::Free(void *memory)
++{
++	b2TrackedBlock::Free(memory);
++}
++
++/// Free all allocated blocks.
++void b2TrackedBlockAllocator::FreeAll()
++{
++	while (!m_blocks.IsEmpty())
++	{
++		b2TrackedBlock::Free(m_blocks.GetNext());
++	}
++}
+diff --git a/liquidfun/Box2D/Box2D/Common/b2TrackedBlock.h b/liquidfun/Box2D/Box2D/Common/b2TrackedBlock.h
+new file mode 100644
+index 00000000..b9acb3c3
+--- /dev/null
++++ b/liquidfun/Box2D/Box2D/Common/b2TrackedBlock.h
+@@ -0,0 +1,92 @@
++/*
++* Copyright (c) 2014 Google, Inc.
++*
++* This software is provided 'as-is', without any express or implied
++* warranty.  In no event will the authors be held liable for any damages
++* arising from the use of this software.
++* Permission is granted to anyone to use this software for any purpose,
++* including commercial applications, and to alter it and redistribute it
++* freely, subject to the following restrictions:
++* 1. The origin of this software must not be misrepresented; you must not
++* claim that you wrote the original software. If you use this software
++* in a product, an acknowledgment in the product documentation would be
++* appreciated but is not required.
++* 2. Altered source versions must be plainly marked as such, and must not be
++* misrepresented as being the original software.
++* 3. This notice may not be removed or altered from any source distribution.
++*/
++#ifndef B2_TRACKED_BLOCK_H
++#define B2_TRACKED_BLOCK_H
++
++#include <Box2D/Common/b2IntrusiveList.h>
++#include <Box2D/Common/b2Settings.h>
++
++/// Alignment (in bytes) of user memory associated with b2TrackedBlock.
++const int32 b2_mallocAlignment = 32;
++
++/// Allocated block of memory that can be tracked in a b2IntrusiveList.
++class b2TrackedBlock : public b2TypedIntrusiveListNode<b2TrackedBlock>
++{
++private:
++	// Initialize this block with a reference to "this".
++	b2TrackedBlock();
++	// Remove the block from the list.
++	~b2TrackedBlock() { }
++
++public:
++	/// Get the allocated memory associated with this block.
++	void* GetMemory() const;
++
++private:
++	// Padding required to align the pointer to user memory in the block
++	// to b2_mallocAlignment.
++	uint8 m_padding[b2_mallocAlignment + sizeof(b2TrackedBlock**)];
++
++public:
++	/// Allocate a b2TrackedBlock returning a pointer to memory of size
++	/// bytes that can be used by the caller.
++	static void* Allocate(uint32 size);
++
++	/// Get a b2TrackedBlock from a pointer to memory returned by
++	/// b2TrackedBlock::Allocate().
++	static b2TrackedBlock* GetFromMemory(void *memory);
++
++	/// Free a block of memory returned by b2TrackedBlock::Allocate()
++	static void Free(void *memory);
++
++	/// Free a b2TrackedBlock.
++	static void Free(b2TrackedBlock *block);
++};
++
++/// Allocator of blocks which are tracked in a list.
++class b2TrackedBlockAllocator
++{
++public:
++	/// Initialize.
++	b2TrackedBlockAllocator() {}
++	/// Free all allocated blocks.
++	~b2TrackedBlockAllocator()
++	{
++		FreeAll();
++	}
++
++	/// Allocate a block of size bytes using b2TrackedBlock::Allocate().
++	void* Allocate(uint32 size);
++
++	/// Free a block returned by Allocate().
++	void Free(void *memory);
++
++	/// Free all allocated blocks.
++	void FreeAll();
++
++	// Get the list of allocated blocks.
++	const b2TypedIntrusiveListNode<b2TrackedBlock>& GetList() const
++	{
++		return m_blocks;
++	}
++
++private:
++	b2TypedIntrusiveListNode<b2TrackedBlock> m_blocks;
++};
++
++#endif  // B2_TRACKED_BLOCK_H

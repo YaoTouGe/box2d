@@ -1,0 +1,952 @@
+diff --git a/liquidfun/Box2D/Box2D/Collision/Shapes/b2ChainShape.cpp b/liquidfun/Box2D/Box2D/Collision/Shapes/b2ChainShape.cpp
+index 3e27eb8d..3f44abd3 100644
+--- a/liquidfun/Box2D/Box2D/Collision/Shapes/b2ChainShape.cpp
++++ b/liquidfun/Box2D/Box2D/Collision/Shapes/b2ChainShape.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2010 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -19,8 +20,8 @@
+ #include <Box2D/Collision/Shapes/b2ChainShape.h>
+ #include <Box2D/Collision/Shapes/b2EdgeShape.h>
+ #include <new>
+-#include <cstring>
+-using namespace std;
++#include <memory.h>
++#include <string.h>
+ 
+ b2ChainShape::~b2ChainShape()
+ {
+@@ -35,10 +36,12 @@ void b2ChainShape::CreateLoop(const b2Vec2* vertices, int32 count)
+ 	b2Assert(count >= 3);
+ 	for (int32 i = 1; i < count; ++i)
+ 	{
++#if B2_ASSERT_ENABLED
+ 		b2Vec2 v1 = vertices[i-1];
+ 		b2Vec2 v2 = vertices[i];
+ 		// If the code crashes here, it means your vertices are too close together.
+ 		b2Assert(b2DistanceSquared(v1, v2) > b2_linearSlop * b2_linearSlop);
++#endif // B2_ASSERT_ENABLED
+ 	}
+ 
+ 	m_count = count + 1;
+@@ -57,10 +60,12 @@ void b2ChainShape::CreateChain(const b2Vec2* vertices, int32 count)
+ 	b2Assert(count >= 2);
+ 	for (int32 i = 1; i < count; ++i)
+ 	{
++#if B2_ASSERT_ENABLED
+ 		b2Vec2 v1 = vertices[i-1];
+ 		b2Vec2 v2 = vertices[i];
+ 		// If the code crashes here, it means your vertices are too close together.
+ 		b2Assert(b2DistanceSquared(v1, v2) > b2_linearSlop * b2_linearSlop);
++#endif // B2_ASSERT_ENABLED
+ 	}
+ 
+ 	m_count = count;
+@@ -69,6 +74,9 @@ void b2ChainShape::CreateChain(const b2Vec2* vertices, int32 count)
+ 
+ 	m_hasPrevVertex = false;
+ 	m_hasNextVertex = false;
++
++	m_prevVertex.SetZero();
++	m_nextVertex.SetZero();
+ }
+ 
+ void b2ChainShape::SetPrevVertex(const b2Vec2& prevVertex)
+@@ -133,6 +141,13 @@ void b2ChainShape::GetChildEdge(b2EdgeShape* edge, int32 index) const
+ 	}
+ }
+ 
++void b2ChainShape::ComputeDistance(const b2Transform& xf, const b2Vec2& p, float32* distance, b2Vec2* normal, int32 childIndex) const
++{
++	b2EdgeShape edge;
++	GetChildEdge(&edge, childIndex);
++	edge.ComputeDistance(xf, p, distance, normal, 0);
++}
++
+ bool b2ChainShape::TestPoint(const b2Transform& xf, const b2Vec2& p) const
+ {
+ 	B2_NOT_USED(xf);
+diff --git a/liquidfun/Box2D/Box2D/Collision/Shapes/b2ChainShape.h b/liquidfun/Box2D/Box2D/Collision/Shapes/b2ChainShape.h
+index d7c5b292..fe2f4b3a 100644
+--- a/liquidfun/Box2D/Box2D/Collision/Shapes/b2ChainShape.h
++++ b/liquidfun/Box2D/Box2D/Collision/Shapes/b2ChainShape.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2010 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -68,6 +69,9 @@ public:
+ 	/// @see b2Shape::TestPoint
+ 	bool TestPoint(const b2Transform& transform, const b2Vec2& p) const;
+ 
++	// @see b2Shape::ComputeDistance
++	void ComputeDistance(const b2Transform& xf, const b2Vec2& p, float32* distance, b2Vec2* normal, int32 childIndex) const;
++
+ 	/// Implement b2Shape.
+ 	bool RayCast(b2RayCastOutput* output, const b2RayCastInput& input,
+ 					const b2Transform& transform, int32 childIndex) const;
+@@ -95,8 +99,8 @@ inline b2ChainShape::b2ChainShape()
+ 	m_radius = b2_polygonRadius;
+ 	m_vertices = NULL;
+ 	m_count = 0;
+-	m_hasPrevVertex = NULL;
+-	m_hasNextVertex = NULL;
++	m_hasPrevVertex = false;
++	m_hasNextVertex = false;
+ }
+ 
+ #endif
+diff --git a/liquidfun/Box2D/Box2D/Collision/Shapes/b2CircleShape.cpp b/liquidfun/Box2D/Box2D/Collision/Shapes/b2CircleShape.cpp
+index d494b134..d2b2e9ec 100644
+--- a/liquidfun/Box2D/Box2D/Collision/Shapes/b2CircleShape.cpp
++++ b/liquidfun/Box2D/Box2D/Collision/Shapes/b2CircleShape.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -18,7 +19,6 @@
+ 
+ #include <Box2D/Collision/Shapes/b2CircleShape.h>
+ #include <new>
+-using namespace std;
+ 
+ b2Shape* b2CircleShape::Clone(b2BlockAllocator* allocator) const
+ {
+@@ -40,6 +40,17 @@ bool b2CircleShape::TestPoint(const b2Transform& transform, const b2Vec2& p) con
+ 	return b2Dot(d, d) <= m_radius * m_radius;
+ }
+ 
++void b2CircleShape::ComputeDistance(const b2Transform& transform, const b2Vec2& p, float32* distance, b2Vec2* normal, int32 childIndex) const
++{
++	B2_NOT_USED(childIndex);
++
++	b2Vec2 center = transform.p + b2Mul(transform.q, m_p);
++	b2Vec2 d = p - center;
++	float32 d1 = d.Length();
++	*distance = d1 - m_radius;
++	*normal = 1 / d1 * d;
++}
++
+ // Collision Detection in Interactive 3D Environments by Gino van den Bergen
+ // From Section 3.1.2
+ // x = s + a * r
+diff --git a/liquidfun/Box2D/Box2D/Collision/Shapes/b2CircleShape.h b/liquidfun/Box2D/Box2D/Collision/Shapes/b2CircleShape.h
+index 3209f924..c1bfb3d7 100644
+--- a/liquidfun/Box2D/Box2D/Collision/Shapes/b2CircleShape.h
++++ b/liquidfun/Box2D/Box2D/Collision/Shapes/b2CircleShape.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -36,6 +37,9 @@ public:
+ 	/// Implement b2Shape.
+ 	bool TestPoint(const b2Transform& transform, const b2Vec2& p) const;
+ 
++	// @see b2Shape::ComputeDistance
++	void ComputeDistance(const b2Transform& xf, const b2Vec2& p, float32* distance, b2Vec2* normal, int32 childIndex) const;
++
+ 	/// Implement b2Shape.
+ 	bool RayCast(b2RayCastOutput* output, const b2RayCastInput& input,
+ 				const b2Transform& transform, int32 childIndex) const;
+@@ -58,6 +62,18 @@ public:
+ 	/// Get a vertex by index. Used by b2Distance.
+ 	const b2Vec2& GetVertex(int32 index) const;
+ 
++#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
++public:
++	/// Set position with direct floats.
++	void SetPosition(float32 x, float32 y) { m_p.Set(x, y); }
++
++	/// Get x-coordinate of position.
++	float32 GetPositionX() const { return m_p.x; }
++
++	/// Get y-coordinate of position.
++	float32 GetPositionY() const { return m_p.y; }
++#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
++
+ 	/// Position
+ 	b2Vec2 m_p;
+ };
+diff --git a/liquidfun/Box2D/Box2D/Collision/Shapes/b2EdgeShape.cpp b/liquidfun/Box2D/Box2D/Collision/Shapes/b2EdgeShape.cpp
+index cbac41cf..3a60a66d 100644
+--- a/liquidfun/Box2D/Box2D/Collision/Shapes/b2EdgeShape.cpp
++++ b/liquidfun/Box2D/Box2D/Collision/Shapes/b2EdgeShape.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2010 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -18,7 +19,6 @@
+ 
+ #include <Box2D/Collision/Shapes/b2EdgeShape.h>
+ #include <new>
+-using namespace std;
+ 
+ void b2EdgeShape::Set(const b2Vec2& v1, const b2Vec2& v2)
+ {
+@@ -48,6 +48,35 @@ bool b2EdgeShape::TestPoint(const b2Transform& xf, const b2Vec2& p) const
+ 	return false;
+ }
+ 
++void b2EdgeShape::ComputeDistance(const b2Transform& xf, const b2Vec2& p, float32* distance, b2Vec2* normal, int32 childIndex) const
++{
++	B2_NOT_USED(childIndex);
++
++	b2Vec2 v1 = b2Mul(xf, m_vertex1);
++	b2Vec2 v2 = b2Mul(xf, m_vertex2);
++
++	b2Vec2 d = p - v1;
++	b2Vec2 s = v2 - v1;
++	float32 ds = b2Dot(d, s);
++	if (ds > 0)
++	{
++		float32 s2 = b2Dot(s, s);
++		if (ds > s2)
++		{
++			d = p - v2;
++		}
++		else
++		{
++			d -= ds / s2 * s;
++		}
++	}
++
++	float32 d1 = d.Length();
++	*distance = d1;
++	*normal = d1 > 0 ? 1 / d1 * d : b2Vec2_zero;
++
++}
++
+ // p = p1 + t * d
+ // v = v1 + s * e
+ // p1 + t * d = v1 + s * e
+@@ -105,11 +134,11 @@ bool b2EdgeShape::RayCast(b2RayCastOutput* output, const b2RayCastInput& input,
+ 	output->fraction = t;
+ 	if (numerator > 0.0f)
+ 	{
+-		output->normal = -normal;
++		output->normal = -b2Mul(xf.q, normal);
+ 	}
+ 	else
+ 	{
+-		output->normal = normal;
++		output->normal = b2Mul(xf.q, normal);
+ 	}
+ 	return true;
+ }
+diff --git a/liquidfun/Box2D/Box2D/Collision/Shapes/b2EdgeShape.h b/liquidfun/Box2D/Box2D/Collision/Shapes/b2EdgeShape.h
+index 0acef851..36055e00 100644
+--- a/liquidfun/Box2D/Box2D/Collision/Shapes/b2EdgeShape.h
++++ b/liquidfun/Box2D/Box2D/Collision/Shapes/b2EdgeShape.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2010 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -41,6 +42,9 @@ public:
+ 	/// @see b2Shape::TestPoint
+ 	bool TestPoint(const b2Transform& transform, const b2Vec2& p) const;
+ 
++	// @see b2Shape::ComputeDistance
++	void ComputeDistance(const b2Transform& xf, const b2Vec2& p, float32* distance, b2Vec2* normal, int32 childIndex) const;
++
+ 	/// Implement b2Shape.
+ 	bool RayCast(b2RayCastOutput* output, const b2RayCastInput& input,
+ 				const b2Transform& transform, int32 childIndex) const;
+@@ -50,7 +54,13 @@ public:
+ 
+ 	/// @see b2Shape::ComputeMass
+ 	void ComputeMass(b2MassData* massData, float32 density) const;
+-	
++
++#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
++public:
++	/// Set this as an isolated edge, with direct floats.
++	void Set(float32 vx1, float32 vy1, float32 vx2, float32 vy2);
++#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
++
+ 	/// These are the edge vertices
+ 	b2Vec2 m_vertex1, m_vertex2;
+ 
+@@ -71,4 +81,14 @@ inline b2EdgeShape::b2EdgeShape()
+ 	m_hasVertex3 = false;
+ }
+ 
++#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
++inline void b2EdgeShape::Set(float32 vx1,
++														 float32 vy1,
++														 float32 vx2,
++														 float32 vy2) {
++	Set(b2Vec2(vx1, vy1), b2Vec2(vx2, vy2));
++}
++#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
++
++
+ #endif
+diff --git a/liquidfun/Box2D/Box2D/Collision/Shapes/b2PolygonShape.cpp b/liquidfun/Box2D/Box2D/Collision/Shapes/b2PolygonShape.cpp
+index 95875063..c0d5aef5 100644
+--- a/liquidfun/Box2D/Box2D/Collision/Shapes/b2PolygonShape.cpp
++++ b/liquidfun/Box2D/Box2D/Collision/Shapes/b2PolygonShape.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -128,11 +129,36 @@ void b2PolygonShape::Set(const b2Vec2* vertices, int32 count)
+ 	
+ 	int32 n = b2Min(count, b2_maxPolygonVertices);
+ 
+-	// Copy vertices into local buffer
++	// Perform welding and copy vertices into local buffer.
+ 	b2Vec2 ps[b2_maxPolygonVertices];
++	int32 tempCount = 0;
+ 	for (int32 i = 0; i < n; ++i)
+ 	{
+-		ps[i] = vertices[i];
++		b2Vec2 v = vertices[i];
++
++		bool unique = true;
++		for (int32 j = 0; j < tempCount; ++j)
++		{
++			if (b2DistanceSquared(v, ps[j]) < 0.5f * b2_linearSlop)
++			{
++				unique = false;
++				break;
++			}
++		}
++
++		if (unique)
++		{
++			ps[tempCount++] = v;
++		}
++	}
++
++	n = tempCount;
++	if (n < 3)
++	{
++		// Polygon is degenerate.
++		b2Assert(false);
++		SetAsBox(1.0f, 1.0f);
++		return;
+ 	}
+ 
+ 	// Create the convex hull using the Gift wrapping algorithm
+@@ -141,7 +167,7 @@ void b2PolygonShape::Set(const b2Vec2* vertices, int32 count)
+ 	// Find the right most point on the hull
+ 	int32 i0 = 0;
+ 	float32 x0 = ps[0].x;
+-	for (int32 i = 1; i < count; ++i)
++	for (int32 i = 1; i < n; ++i)
+ 	{
+ 		float32 x = ps[i].x;
+ 		if (x > x0 || (x == x0 && ps[i].y < ps[i0].y))
+@@ -231,6 +257,50 @@ bool b2PolygonShape::TestPoint(const b2Transform& xf, const b2Vec2& p) const
+ 	return true;
+ }
+ 
++void b2PolygonShape::ComputeDistance(const b2Transform& xf, const b2Vec2& p, float32* distance, b2Vec2* normal, int32 childIndex) const
++{
++	B2_NOT_USED(childIndex);
++
++	b2Vec2 pLocal = b2MulT(xf.q, p - xf.p);
++	float32 maxDistance = -FLT_MAX;
++	b2Vec2 normalForMaxDistance = pLocal;
++
++	for (int32 i = 0; i < m_count; ++i)
++	{
++		float32 dot = b2Dot(m_normals[i], pLocal - m_vertices[i]);
++		if (dot > maxDistance)
++		{
++			maxDistance = dot;
++			normalForMaxDistance = m_normals[i];
++		}
++	}
++
++	if (maxDistance > 0)
++	{
++		b2Vec2 minDistance = normalForMaxDistance;
++		float32 minDistance2 = maxDistance * maxDistance;
++		for (int32 i = 0; i < m_count; ++i)
++		{
++			b2Vec2 distance = pLocal - m_vertices[i];
++			float32 distance2 = distance.LengthSquared();
++			if (minDistance2 > distance2)
++			{
++				minDistance = distance;
++				minDistance2 = distance2;
++			}
++		}
++
++		*distance = b2Sqrt(minDistance2);
++		*normal = b2Mul(xf.q, minDistance);
++		normal->Normalize();
++	}
++	else
++	{
++		*distance = maxDistance;
++		*normal = b2Mul(xf.q, normalForMaxDistance);
++	}
++}
++
+ bool b2PolygonShape::RayCast(b2RayCastOutput* output, const b2RayCastInput& input,
+ 								const b2Transform& xf, int32 childIndex) const
+ {
+diff --git a/liquidfun/Box2D/Box2D/Collision/Shapes/b2PolygonShape.h b/liquidfun/Box2D/Box2D/Collision/Shapes/b2PolygonShape.h
+index b1929803..9792ee0b 100644
+--- a/liquidfun/Box2D/Box2D/Collision/Shapes/b2PolygonShape.h
++++ b/liquidfun/Box2D/Box2D/Collision/Shapes/b2PolygonShape.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -58,6 +59,9 @@ public:
+ 	/// @see b2Shape::TestPoint
+ 	bool TestPoint(const b2Transform& transform, const b2Vec2& p) const;
+ 
++	// @see b2Shape::ComputeDistance
++	void ComputeDistance(const b2Transform& xf, const b2Vec2& p, float32* distance, b2Vec2* normal, int32 childIndex) const;
++
+ 	/// Implement b2Shape.
+ 	bool RayCast(b2RayCastOutput* output, const b2RayCastInput& input,
+ 					const b2Transform& transform, int32 childIndex) const;
+@@ -78,6 +82,20 @@ public:
+ 	/// @returns true if valid
+ 	bool Validate() const;
+ 
++#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
++public:
++	/// Set centroid with direct floats.
++	void SetCentroid(float32 x, float32 y);
++
++	/// SetAsBox with direct floats for center.
++	/// @see b2Shape::SetAsBox
++	void SetAsBox(float32 hx,
++								float32 hy,
++								float32 centerX,
++								float32 centerY,
++								float32 angle);
++#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
++
+ 	b2Vec2 m_centroid;
+ 	b2Vec2 m_vertices[b2_maxPolygonVertices];
+ 	b2Vec2 m_normals[b2_maxPolygonVertices];
+@@ -98,4 +116,19 @@ inline const b2Vec2& b2PolygonShape::GetVertex(int32 index) const
+ 	return m_vertices[index];
+ }
+ 
++#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
++inline void b2PolygonShape::SetCentroid(float32 x, float32 y)
++{
++	m_centroid.Set(x, y);
++}
++
++inline void b2PolygonShape::SetAsBox(float32 hx,
++										 float32 hy,
++										 float32 centerX,
++										 float32 centerY,
++										 float32 angle) {
++	SetAsBox(hx, hy, b2Vec2(centerX, centerY), angle);
++}
++#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
++
+ #endif
+diff --git a/liquidfun/Box2D/Box2D/Collision/Shapes/b2Shape.h b/liquidfun/Box2D/Box2D/Collision/Shapes/b2Shape.h
+index 170ea1a1..7f14f396 100644
+--- a/liquidfun/Box2D/Box2D/Collision/Shapes/b2Shape.h
++++ b/liquidfun/Box2D/Box2D/Collision/Shapes/b2Shape.h
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2006-2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2013 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -69,6 +70,13 @@ public:
+ 	/// @param p a point in world coordinates.
+ 	virtual bool TestPoint(const b2Transform& xf, const b2Vec2& p) const = 0;
+ 
++	/// Compute the distance from the current shape to the specified point. This only works for convex shapes.
++	/// @param xf the shape world transform.
++	/// @param p a point in world coordinates.
++	/// @param distance returns the distance from the current shape.
++	/// @param normal returns the direction in which the distance increases.
++	virtual void ComputeDistance(const b2Transform& xf, const b2Vec2& p, float32* distance, b2Vec2* normal, int32 childIndex) const= 0;
++
+ 	/// Cast a ray against a child shape.
+ 	/// @param output the ray-cast results.
+ 	/// @param input the ray-cast input parameters.
+diff --git a/liquidfun/Box2D/Box2D/Collision/b2BroadPhase.cpp b/liquidfun/Box2D/Box2D/Collision/b2BroadPhase.cpp
+index 3dd4c40c..04e955d2 100644
+--- a/liquidfun/Box2D/Box2D/Collision/b2BroadPhase.cpp
++++ b/liquidfun/Box2D/Box2D/Collision/b2BroadPhase.cpp
+@@ -17,8 +17,6 @@
+ */
+ 
+ #include <Box2D/Collision/b2BroadPhase.h>
+-#include <cstring>
+-using namespace std;
+ 
+ b2BroadPhase::b2BroadPhase()
+ {
+diff --git a/liquidfun/Box2D/Box2D/Collision/b2CollideEdge.cpp b/liquidfun/Box2D/Box2D/Collision/b2CollideEdge.cpp
+index e4045727..88e311c6 100644
+--- a/liquidfun/Box2D/Box2D/Collision/b2CollideEdge.cpp
++++ b/liquidfun/Box2D/Box2D/Collision/b2CollideEdge.cpp
+@@ -497,13 +497,13 @@ void b2EPCollider::Collide(b2Manifold* manifold, const b2EdgeShape* edgeA, const
+ 		
+ 		ie[0].v = m_polygonB.vertices[i1];
+ 		ie[0].id.cf.indexA = 0;
+-		ie[0].id.cf.indexB = i1;
++		ie[0].id.cf.indexB = static_cast<uint8>(i1);
+ 		ie[0].id.cf.typeA = b2ContactFeature::e_face;
+ 		ie[0].id.cf.typeB = b2ContactFeature::e_vertex;
+ 		
+ 		ie[1].v = m_polygonB.vertices[i2];
+ 		ie[1].id.cf.indexA = 0;
+-		ie[1].id.cf.indexB = i2;
++		ie[1].id.cf.indexB = static_cast<uint8>(i2);
+ 		ie[1].id.cf.typeA = b2ContactFeature::e_face;
+ 		ie[1].id.cf.typeB = b2ContactFeature::e_vertex;
+ 		
+@@ -530,13 +530,13 @@ void b2EPCollider::Collide(b2Manifold* manifold, const b2EdgeShape* edgeA, const
+ 		
+ 		ie[0].v = m_v1;
+ 		ie[0].id.cf.indexA = 0;
+-		ie[0].id.cf.indexB = primaryAxis.index;
++		ie[0].id.cf.indexB = static_cast<uint8>(primaryAxis.index);
+ 		ie[0].id.cf.typeA = b2ContactFeature::e_vertex;
+ 		ie[0].id.cf.typeB = b2ContactFeature::e_face;
+ 		
+ 		ie[1].v = m_v2;
+ 		ie[1].id.cf.indexA = 0;
+-		ie[1].id.cf.indexB = primaryAxis.index;		
++		ie[1].id.cf.indexB = static_cast<uint8>(primaryAxis.index);		
+ 		ie[1].id.cf.typeA = b2ContactFeature::e_vertex;
+ 		ie[1].id.cf.typeB = b2ContactFeature::e_face;
+ 		
+diff --git a/liquidfun/Box2D/Box2D/Collision/b2CollidePolygon.cpp b/liquidfun/Box2D/Box2D/Collision/b2CollidePolygon.cpp
+index e17fdbc8..0aac38b2 100644
+--- a/liquidfun/Box2D/Box2D/Collision/b2CollidePolygon.cpp
++++ b/liquidfun/Box2D/Box2D/Collision/b2CollidePolygon.cpp
+@@ -19,123 +19,46 @@
+ #include <Box2D/Collision/b2Collision.h>
+ #include <Box2D/Collision/Shapes/b2PolygonShape.h>
+ 
+-// Find the separation between poly1 and poly2 for a give edge normal on poly1.
+-static float32 b2EdgeSeparation(const b2PolygonShape* poly1, const b2Transform& xf1, int32 edge1,
+-							  const b2PolygonShape* poly2, const b2Transform& xf2)
+-{
+-	const b2Vec2* vertices1 = poly1->m_vertices;
+-	const b2Vec2* normals1 = poly1->m_normals;
+-
+-	int32 count2 = poly2->m_count;
+-	const b2Vec2* vertices2 = poly2->m_vertices;
+-
+-	b2Assert(0 <= edge1 && edge1 < poly1->m_count);
+-
+-	// Convert normal from poly1's frame into poly2's frame.
+-	b2Vec2 normal1World = b2Mul(xf1.q, normals1[edge1]);
+-	b2Vec2 normal1 = b2MulT(xf2.q, normal1World);
+-
+-	// Find support vertex on poly2 for -normal.
+-	int32 index = 0;
+-	float32 minDot = b2_maxFloat;
+-
+-	for (int32 i = 0; i < count2; ++i)
+-	{
+-		float32 dot = b2Dot(vertices2[i], normal1);
+-		if (dot < minDot)
+-		{
+-			minDot = dot;
+-			index = i;
+-		}
+-	}
+-
+-	b2Vec2 v1 = b2Mul(xf1, vertices1[edge1]);
+-	b2Vec2 v2 = b2Mul(xf2, vertices2[index]);
+-	float32 separation = b2Dot(v2 - v1, normal1World);
+-	return separation;
+-}
+-
+ // Find the max separation between poly1 and poly2 using edge normals from poly1.
+ static float32 b2FindMaxSeparation(int32* edgeIndex,
+ 								 const b2PolygonShape* poly1, const b2Transform& xf1,
+ 								 const b2PolygonShape* poly2, const b2Transform& xf2)
+ {
+ 	int32 count1 = poly1->m_count;
+-	const b2Vec2* normals1 = poly1->m_normals;
+-
+-	// Vector pointing from the centroid of poly1 to the centroid of poly2.
+-	b2Vec2 d = b2Mul(xf2, poly2->m_centroid) - b2Mul(xf1, poly1->m_centroid);
+-	b2Vec2 dLocal1 = b2MulT(xf1.q, d);
++	int32 count2 = poly2->m_count;
++	const b2Vec2* n1s = poly1->m_normals;
++	const b2Vec2* v1s = poly1->m_vertices;
++	const b2Vec2* v2s = poly2->m_vertices;
++	b2Transform xf = b2MulT(xf2, xf1);
+ 
+-	// Find edge normal on poly1 that has the largest projection onto d.
+-	int32 edge = 0;
+-	float32 maxDot = -b2_maxFloat;
++	int32 bestIndex = 0;
++	float32 maxSeparation = -b2_maxFloat;
+ 	for (int32 i = 0; i < count1; ++i)
+ 	{
+-		float32 dot = b2Dot(normals1[i], dLocal1);
+-		if (dot > maxDot)
+-		{
+-			maxDot = dot;
+-			edge = i;
+-		}
+-	}
++		// Get poly1 normal in frame2.
++		b2Vec2 n = b2Mul(xf.q, n1s[i]);
++		b2Vec2 v1 = b2Mul(xf, v1s[i]);
+ 
+-	// Get the separation for the edge normal.
+-	float32 s = b2EdgeSeparation(poly1, xf1, edge, poly2, xf2);
+-
+-	// Check the separation for the previous edge normal.
+-	int32 prevEdge = edge - 1 >= 0 ? edge - 1 : count1 - 1;
+-	float32 sPrev = b2EdgeSeparation(poly1, xf1, prevEdge, poly2, xf2);
+-
+-	// Check the separation for the next edge normal.
+-	int32 nextEdge = edge + 1 < count1 ? edge + 1 : 0;
+-	float32 sNext = b2EdgeSeparation(poly1, xf1, nextEdge, poly2, xf2);
+-
+-	// Find the best edge and the search direction.
+-	int32 bestEdge;
+-	float32 bestSeparation;
+-	int32 increment;
+-	if (sPrev > s && sPrev > sNext)
+-	{
+-		increment = -1;
+-		bestEdge = prevEdge;
+-		bestSeparation = sPrev;
+-	}
+-	else if (sNext > s)
+-	{
+-		increment = 1;
+-		bestEdge = nextEdge;
+-		bestSeparation = sNext;
+-	}
+-	else
+-	{
+-		*edgeIndex = edge;
+-		return s;
+-	}
+-
+-	// Perform a local search for the best edge normal.
+-	for ( ; ; )
+-	{
+-		if (increment == -1)
+-			edge = bestEdge - 1 >= 0 ? bestEdge - 1 : count1 - 1;
+-		else
+-			edge = bestEdge + 1 < count1 ? bestEdge + 1 : 0;
+-
+-		s = b2EdgeSeparation(poly1, xf1, edge, poly2, xf2);
+-
+-		if (s > bestSeparation)
++		// Find deepest point for normal i.
++		float32 si = b2_maxFloat;
++		for (int32 j = 0; j < count2; ++j)
+ 		{
+-			bestEdge = edge;
+-			bestSeparation = s;
++			float32 sij = b2Dot(n, v2s[j] - v1);
++			if (sij < si)
++			{
++				si = sij;
++			}
+ 		}
+-		else
++
++		if (si > maxSeparation)
+ 		{
+-			break;
++			maxSeparation = si;
++			bestIndex = i;
+ 		}
+ 	}
+ 
+-	*edgeIndex = bestEdge;
+-	return bestSeparation;
++	*edgeIndex = bestIndex;
++	return maxSeparation;
+ }
+ 
+ static void b2FindIncidentEdge(b2ClipVertex c[2],
+@@ -210,12 +133,11 @@ void b2CollidePolygons(b2Manifold* manifold,
+ 	const b2PolygonShape* poly1;	// reference polygon
+ 	const b2PolygonShape* poly2;	// incident polygon
+ 	b2Transform xf1, xf2;
+-	int32 edge1;		// reference edge
++	int32 edge1;					// reference edge
+ 	uint8 flip;
+-	const float32 k_relativeTol = 0.98f;
+-	const float32 k_absoluteTol = 0.001f;
++	const float32 k_tol = 0.1f * b2_linearSlop;
+ 
+-	if (separationB > k_relativeTol * separationA + k_absoluteTol)
++	if (separationB > separationA + k_tol)
+ 	{
+ 		poly1 = polyB;
+ 		poly2 = polyA;
+diff --git a/liquidfun/Box2D/Box2D/Collision/b2Collision.cpp b/liquidfun/Box2D/Box2D/Collision/b2Collision.cpp
+index 8ecb3377..4ebf3556 100644
+--- a/liquidfun/Box2D/Box2D/Collision/b2Collision.cpp
++++ b/liquidfun/Box2D/Box2D/Collision/b2Collision.cpp
+@@ -44,6 +44,7 @@ void b2WorldManifold::Initialize(const b2Manifold* manifold,
+ 			b2Vec2 cA = pointA + radiusA * normal;
+ 			b2Vec2 cB = pointB - radiusB * normal;
+ 			points[0] = 0.5f * (cA + cB);
++			separations[0] = b2Dot(cB - cA, normal);
+ 		}
+ 		break;
+ 
+@@ -58,6 +59,7 @@ void b2WorldManifold::Initialize(const b2Manifold* manifold,
+ 				b2Vec2 cA = clipPoint + (radiusA - b2Dot(clipPoint - planePoint, normal)) * normal;
+ 				b2Vec2 cB = clipPoint - radiusB * normal;
+ 				points[i] = 0.5f * (cA + cB);
++				separations[i] = b2Dot(cB - cA, normal);
+ 			}
+ 		}
+ 		break;
+@@ -73,6 +75,7 @@ void b2WorldManifold::Initialize(const b2Manifold* manifold,
+ 				b2Vec2 cB = clipPoint + (radiusB - b2Dot(clipPoint - planePoint, normal)) * normal;
+ 				b2Vec2 cA = clipPoint - radiusA * normal;
+ 				points[i] = 0.5f * (cA + cB);
++				separations[i] = b2Dot(cA - cB, normal);
+ 			}
+ 
+ 			// Ensure normal points from A to B.
+@@ -217,7 +220,7 @@ int32 b2ClipSegmentToLine(b2ClipVertex vOut[2], const b2ClipVertex vIn[2],
+ 		vOut[numOut].v = vIn[0].v + interp * (vIn[1].v - vIn[0].v);
+ 
+ 		// VertexA is hitting edgeB.
+-		vOut[numOut].id.cf.indexA = vertexIndexA;
++		vOut[numOut].id.cf.indexA = static_cast<uint8>(vertexIndexA);
+ 		vOut[numOut].id.cf.indexB = vIn[0].id.cf.indexB;
+ 		vOut[numOut].id.cf.typeA = b2ContactFeature::e_vertex;
+ 		vOut[numOut].id.cf.typeB = b2ContactFeature::e_face;
+diff --git a/liquidfun/Box2D/Box2D/Collision/b2Collision.h b/liquidfun/Box2D/Box2D/Collision/b2Collision.h
+index 8bb316ca..ad023b3c 100644
+--- a/liquidfun/Box2D/Box2D/Collision/b2Collision.h
++++ b/liquidfun/Box2D/Box2D/Collision/b2Collision.h
+@@ -20,7 +20,7 @@
+ #define B2_COLLISION_H
+ 
+ #include <Box2D/Common/b2Math.h>
+-#include <climits>
++#include <limits.h>
+ 
+ /// @file
+ /// Structures and functions used for computing contact points, distance
+@@ -117,8 +117,9 @@ struct b2WorldManifold
+ 					const b2Transform& xfA, float32 radiusA,
+ 					const b2Transform& xfB, float32 radiusB);
+ 
+-	b2Vec2 normal;							///< world vector pointing from A to B
+-	b2Vec2 points[b2_maxManifoldPoints];	///< world contact point (point of intersection)
++	b2Vec2 normal;								///< world vector pointing from A to B
++	b2Vec2 points[b2_maxManifoldPoints];		///< world contact point (point of intersection)
++	float32 separations[b2_maxManifoldPoints];	///< a negative value indicates overlap, in meters
+ };
+ 
+ /// This is used for determining the state of contact points.
+diff --git a/liquidfun/Box2D/Box2D/Collision/b2Distance.cpp b/liquidfun/Box2D/Box2D/Collision/b2Distance.cpp
+index 540e2f06..05b9d1ed 100644
+--- a/liquidfun/Box2D/Box2D/Collision/b2Distance.cpp
++++ b/liquidfun/Box2D/Box2D/Collision/b2Distance.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2007-2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2014 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -15,6 +16,8 @@
+ * misrepresented as being the original software.
+ * 3. This notice may not be removed or altered from any source distribution.
+ */
++#include <string.h>
++#include <memory.h>
+ 
+ #include <Box2D/Collision/b2Distance.h>
+ #include <Box2D/Collision/Shapes/b2CircleShape.h>
+@@ -31,7 +34,7 @@ void b2DistanceProxy::Set(const b2Shape* shape, int32 index)
+ 	{
+ 	case b2Shape::e_circle:
+ 		{
+-			const b2CircleShape* circle = (b2CircleShape*)shape;
++			const b2CircleShape* circle = static_cast<const b2CircleShape*>(shape);
+ 			m_vertices = &circle->m_p;
+ 			m_count = 1;
+ 			m_radius = circle->m_radius;
+@@ -40,7 +43,7 @@ void b2DistanceProxy::Set(const b2Shape* shape, int32 index)
+ 
+ 	case b2Shape::e_polygon:
+ 		{
+-			const b2PolygonShape* polygon = (b2PolygonShape*)shape;
++			const b2PolygonShape* polygon = static_cast<const b2PolygonShape*>(shape);
+ 			m_vertices = polygon->m_vertices;
+ 			m_count = polygon->m_count;
+ 			m_radius = polygon->m_radius;
+@@ -49,7 +52,7 @@ void b2DistanceProxy::Set(const b2Shape* shape, int32 index)
+ 
+ 	case b2Shape::e_chain:
+ 		{
+-			const b2ChainShape* chain = (b2ChainShape*)shape;
++			const b2ChainShape* chain = static_cast<const b2ChainShape*>(shape);
+ 			b2Assert(0 <= index && index < chain->m_count);
+ 
+ 			m_buffer[0] = chain->m_vertices[index];
+@@ -70,7 +73,7 @@ void b2DistanceProxy::Set(const b2Shape* shape, int32 index)
+ 
+ 	case b2Shape::e_edge:
+ 		{
+-			const b2EdgeShape* edge = (b2EdgeShape*)shape;
++			const b2EdgeShape* edge = static_cast<const b2EdgeShape*>(shape);
+ 			m_vertices = &edge->m_vertex1;
+ 			m_count = 2;
+ 			m_radius = edge->m_radius;
+@@ -466,8 +469,16 @@ void b2Distance(b2DistanceOutput* output,
+ 	int32 saveA[3], saveB[3];
+ 	int32 saveCount = 0;
+ 
++	// Work around spurious gcc-4.8.2 warnings when -Wmaybe-uninitialized is
++	// enabled by initializing saveA / saveB arrays when they're referenced
++	// at the end of the main iteration loop below even though saveCount
++	// entries of each array are initialized at the start of the main
++	// iteration loop.
++	memset(saveA, 0, sizeof(saveA));
++	memset(saveB, 0, sizeof(saveB));
++
+ 	float32 distanceSqr1 = b2_maxFloat;
+-	float32 distanceSqr2 = distanceSqr1;
++	float32 distanceSqr2;
+ 
+ 	// Main iteration loop.
+ 	int32 iter = 0;
+diff --git a/liquidfun/Box2D/Box2D/Collision/b2DynamicTree.cpp b/liquidfun/Box2D/Box2D/Collision/b2DynamicTree.cpp
+index 38703663..3187d703 100644
+--- a/liquidfun/Box2D/Box2D/Collision/b2DynamicTree.cpp
++++ b/liquidfun/Box2D/Box2D/Collision/b2DynamicTree.cpp
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright (c) 2009 Erin Catto http://www.box2d.org
++* Copyright (c) 2014 Google, Inc.
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+@@ -17,10 +18,8 @@
+ */
+ 
+ #include <Box2D/Collision/b2DynamicTree.h>
+-#include <cstring>
+-#include <cfloat>
+-using namespace std;
+-
++#include <memory.h>
++#include <string.h>
+ 
+ b2DynamicTree::b2DynamicTree()
+ {
+@@ -593,8 +592,10 @@ void b2DynamicTree::ValidateStructure(int32 index) const
+ 
+ 	const b2TreeNode* node = m_nodes + index;
+ 
++#if B2_ASSERT_ENABLED || DEBUG
+ 	int32 child1 = node->child1;
+ 	int32 child2 = node->child2;
++#endif  // B2_ASSERT_ENABLED || DEBUG
+ 
+ 	if (node->IsLeaf())
+ 	{
+@@ -610,8 +611,8 @@ void b2DynamicTree::ValidateStructure(int32 index) const
+ 	b2Assert(m_nodes[child1].parent == index);
+ 	b2Assert(m_nodes[child2].parent == index);
+ 
+-	ValidateStructure(child1);
+-	ValidateStructure(child2);
++	B2_DEBUG_STATEMENT(ValidateStructure(child1));
++	B2_DEBUG_STATEMENT(ValidateStructure(child2));
+ }
+ 
+ void b2DynamicTree::ValidateMetrics(int32 index) const
+@@ -637,10 +638,12 @@ void b2DynamicTree::ValidateMetrics(int32 index) const
+ 	b2Assert(0 <= child1 && child1 < m_nodeCapacity);
+ 	b2Assert(0 <= child2 && child2 < m_nodeCapacity);
+ 
++#if B2_ASSERT_ENABLED
+ 	int32 height1 = m_nodes[child1].height;
+ 	int32 height2 = m_nodes[child2].height;
+ 	int32 height;
+ 	height = 1 + b2Max(height1, height2);
++#endif // B2_ASSERT_ENABLED
+ 	b2Assert(node->height == height);
+ 
+ 	b2AABB aabb;
+@@ -655,8 +658,8 @@ void b2DynamicTree::ValidateMetrics(int32 index) const
+ 
+ void b2DynamicTree::Validate() const
+ {
+-	ValidateStructure(m_root);
+-	ValidateMetrics(m_root);
++	B2_DEBUG_STATEMENT(ValidateStructure(m_root));
++	B2_DEBUG_STATEMENT(ValidateMetrics(m_root));
+ 
+ 	int32 freeCount = 0;
+ 	int32 freeIndex = m_freeList;
+@@ -767,7 +770,7 @@ void b2DynamicTree::RebuildBottomUp()
+ 	m_root = nodes[0];
+ 	b2Free(nodes);
+ 
+-	Validate();
++	B2_DEBUG_STATEMENT(Validate());
+ }
+ 
+ void b2DynamicTree::ShiftOrigin(const b2Vec2& newOrigin)
+diff --git a/liquidfun/Box2D/Box2D/Collision/b2TimeOfImpact.cpp b/liquidfun/Box2D/Box2D/Collision/b2TimeOfImpact.cpp
+index e48b36ad..60551f67 100644
+--- a/liquidfun/Box2D/Box2D/Collision/b2TimeOfImpact.cpp
++++ b/liquidfun/Box2D/Box2D/Collision/b2TimeOfImpact.cpp
+@@ -23,8 +23,7 @@
+ #include <Box2D/Collision/Shapes/b2PolygonShape.h>
+ #include <Box2D/Common/b2Timer.h>
+ 
+-#include <cstdio>
+-using namespace std;
++#include <stdio.h>
+ 
+ float32 b2_toiTime, b2_toiMaxTime;
+ int32 b2_toiCalls, b2_toiIters, b2_toiMaxIters;
+@@ -68,6 +67,7 @@ struct b2SeparationFunction
+ 			b2Vec2 pointB = b2Mul(xfB, localPointB);
+ 			m_axis = pointB - pointA;
+ 			float32 s = m_axis.Normalize();
++			m_localPoint = b2Vec2_zero;
+ 			return s;
+ 		}
+ 		else if (cache->indexA[0] == cache->indexA[1])

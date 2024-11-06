@@ -29,5 +29,15 @@ typedef signed int int32;
 typedef unsigned char uint8;
 typedef unsigned short uint16;
 typedef unsigned int uint32;
+typedef float float32;
+typedef double float64;
+
+#ifdef WIN32
+typedef __int64 int64;
+typedef unsigned __int64 uint64;
+#else // !WIN32
+typedef long long int64;
+typedef unsigned long long uint64;
+#endif
 
 #endif

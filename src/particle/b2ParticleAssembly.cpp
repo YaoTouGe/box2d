@@ -15,8 +15,8 @@
 * misrepresented as being the original software.
 * 3. This notice may not be removed or altered from any source distribution.
 */
-#include <Box2D/Particle/b2ParticleAssembly.h>
-#include <Box2D/Particle/b2ParticleSystem.h>
+#include <particle/b2ParticleAssembly.h>
+#include <particle/b2ParticleSystem.h>
 
 extern "C" {
 
