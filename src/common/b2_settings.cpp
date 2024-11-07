@@ -29,6 +29,27 @@
 
 b2Version b2_version = {2, 4, 1};
 
+
+#define LIQUIDFUN_VERSION_MAJOR 1
+#define LIQUIDFUN_VERSION_MINOR 1
+#define LIQUIDFUN_VERSION_REVISION 0
+#define LIQUIDFUN_STRING_EXPAND(X) #X
+#define LIQUIDFUN_STRING(X) LIQUIDFUN_STRING_EXPAND(X)
+
+static void* b2AllocDefault(int32 size, void* callbackData);
+static void b2FreeDefault(void* mem, void* callbackData);
+
+const b2Version b2_liquidFunVersion = {
+	LIQUIDFUN_VERSION_MAJOR, LIQUIDFUN_VERSION_MINOR,
+	LIQUIDFUN_VERSION_REVISION,
+};
+
+const char *b2_liquidFunVersionString =
+	"LiquidFun "
+	LIQUIDFUN_STRING(LIQUIDFUN_VERSION_MAJOR) "."
+	LIQUIDFUN_STRING(LIQUIDFUN_VERSION_MINOR) "."
+	LIQUIDFUN_STRING(LIQUIDFUN_VERSION_REVISION);
+
 // Memory allocators. Modify these to use your own allocator.
 void* b2Alloc_Default(int32 size)
 {

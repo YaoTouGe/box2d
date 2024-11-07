@@ -25,6 +25,7 @@
 
 #include "b2_api.h"
 #include "b2_settings.h"
+#include <box2d/b2TrackedBlock.h>
 
 const int32 b2_blockSizeCount = 14;
 
@@ -48,6 +49,9 @@ public:
 
 	void Clear();
 
+	/// Returns the number of allocations larger than the max block size.
+	uint32 GetNumGiantAllocations() const;
+
 private:
 
 	b2Chunk* m_chunks;
@@ -55,6 +59,9 @@ private:
 	int32 m_chunkSpace;
 
 	b2Block* m_freeLists[b2_blockSizeCount];
+
+	// Record giant allocations--ones bigger than the max block size
+	b2TrackedBlockAllocator m_giants;
 };
 
 #endif

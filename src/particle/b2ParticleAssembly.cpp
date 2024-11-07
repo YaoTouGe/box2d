@@ -16,7 +16,7 @@
 * 3. This notice may not be removed or altered from any source distribution.
 */
 #include <particle/b2ParticleAssembly.h>
-#include <particle/b2ParticleSystem.h>
+#include <box2d/b2ParticleSystem.h>
 
 extern "C" {
 
