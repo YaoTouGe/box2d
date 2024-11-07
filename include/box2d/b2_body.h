@@ -69,6 +69,11 @@ struct B2_API b2BodyDef
 		gravityScale = 1.0f;
 	}
 
+#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
+	/// Set position with direct floats.
+	void SetPosition(float32 positionX, float32 positionY);
+#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
+
 	/// The body type: static, kinematic, or dynamic.
 	/// Note: if a dynamic body would have zero mass, the mass is set to one.
 	b2BodyType type;
@@ -386,6 +391,18 @@ public:
 	/// Dump this body to a file
 	void Dump();
 
+#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
+public:
+	/// Get x-coordinate of position.
+	float32 GetPositionX() const { return GetPosition().x; }
+
+	/// Get y-coordinate of position.
+	float32 GetPositionY() const { return GetPosition().y; }
+
+	/// Set b2Transform using direct floats.
+	void SetTransform(float32 positionX, float32 positionY, float32 angle);
+#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
+
 private:
 
 	friend class b2World;
@@ -404,6 +421,9 @@ private:
 	friend class b2RevoluteJoint;
 	friend class b2WeldJoint;
 	friend class b2WheelJoint;
+
+	friend class b2ParticleSystem;
+	friend class b2ParticleGroup;
 
 	// m_flags
 	enum
@@ -436,6 +456,7 @@ private:
 	int32 m_islandIndex;
 
 	b2Transform m_xf;		// the body origin transform
+	b2Transform m_xf0;		// the previous transform for particle simulation
 	b2Sweep m_sweep;		// the swept motion for CCD
 
 	b2Vec2 m_linearVelocity;
@@ -881,5 +902,17 @@ inline const b2World* b2Body::GetWorld() const
 {
 	return m_world;
 }
+
+#if LIQUIDFUN_EXTERNAL_LANGUAGE_API
+inline void b2BodyDef::SetPosition(float32 positionX, float32 positionY)
+{
+	position.Set(positionX, positionY);
+}
+
+inline void b2Body::SetTransform(float32 positionX, float32 positionY, float32 angle)
+{
+	SetTransform(b2Vec2(positionX, positionY), angle);
+}
+#endif // LIQUIDFUN_EXTERNAL_LANGUAGE_API
 
 #endif

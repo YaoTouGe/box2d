@@ -82,6 +82,8 @@ public:
 
 	void DrawAABB(b2AABB* aabb, const b2Color& color);
 
+	void DrawParticles(const b2Vec2 *centers, float32 radius, const b2ParticleColor *colors, int32 count) override;
+	
 	void Flush();
 
 	bool m_showUI;

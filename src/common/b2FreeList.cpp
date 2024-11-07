@@ -15,9 +15,9 @@
 * misrepresented as being the original software.
 * 3. This notice may not be removed or altered from any source distribution.
 */
-#include <Box2D/Common/b2FreeList.h>
-#include <Box2D/Common/b2IntrusiveList.h>
-#include <Box2D/Common/b2Settings.h>
+#include <box2d/b2FreeList.h>
+#include <box2d/b2IntrusiveList.h>
+#include <box2d/b2_settings.h>
 
 /// Allocate an item from the freelist.
 b2IntrusiveListNode* b2FreeList::Allocate()

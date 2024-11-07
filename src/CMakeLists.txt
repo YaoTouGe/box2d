@@ -17,6 +17,8 @@ set(BOX2D_SOURCE_FILES
 	common/b2_settings.cpp
 	common/b2_stack_allocator.cpp
 	common/b2_timer.cpp
+	common/b2FreeList.cpp
+	common/b2TrackedBlock.cpp
 	dynamics/b2_body.cpp
 	dynamics/b2_chain_circle_contact.cpp
 	dynamics/b2_chain_circle_contact.h
@@ -54,10 +56,10 @@ set(BOX2D_SOURCE_FILES
 	dynamics/b2_world_callbacks.cpp
 	rope/b2_rope.cpp
 	particle/b2Particle.cpp
+	particle/b2ParticleGroup.cpp
 	particle/b2ParticleAssembly.cpp
 	particle/b2ParticleAssembly.h
 	particle/b2ParticleSystem.cpp
-	particle/b2ParticleSystem.h
 	particle/b2StackQueue.h
 	particle/b2VoronoiDiagram.cpp
 	particle/b2VoronoiDiagram.h)
@@ -104,7 +106,8 @@ set(BOX2D_HEADER_FILES
 	../include/box2d/b2_world_callbacks.h
 	../include/box2d/box2d.h
 	../include/box2d/b2Particle.h
-	../include/box2d/b2ParticleGroup.h)
+	../include/box2d/b2ParticleGroup.h
+	../include/box2d/b2ParticleSystem.h)
 
 add_library(box2d ${BOX2D_SOURCE_FILES} ${BOX2D_HEADER_FILES})
 target_include_directories(box2d
